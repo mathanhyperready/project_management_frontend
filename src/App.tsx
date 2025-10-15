@@ -14,14 +14,15 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    
+    // <div  className="app-container">
     <div className="h-screen flex overflow-hidden bg-gray-100">
-      <div><Sidebar /></div>
+      <Sidebar />
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
         <Topbar />
         <AppRoutes />
       </div>
     </div>
+    // </div>
   );
 };
 

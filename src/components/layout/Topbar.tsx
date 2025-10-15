@@ -5,7 +5,7 @@ export const Topbar: React.FC = () => {
   const { user, logout } = useAuth();
 
   return (
-    <div className="md:ml-64 flex-shrink-0 flex h-16 bg-white shadow">
+    <div className=" flex-shrink-0 flex h-16 bg-white shadow">
       <div className="flex-1 px-4 flex justify-between">
         <div className="flex-1 flex items-center">
           <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>

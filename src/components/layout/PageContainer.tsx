@@ -12,8 +12,8 @@ export const PageContainer: React.FC<PageContainerProps> = ({
   actions 
 }) => {
   return (
-    <div className="md:ml-64">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6">
+    <div className="flex-1 overflow-auto">
+      <div className="mx-auto px-4 sm:px-6 md:px-8 py-6">
         {(title || actions) && (
           <div className="md:flex md:items-center md:justify-between mb-6">
             {title && (
