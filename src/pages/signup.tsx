@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const Login: React.FC = () => {
+const Signup: React.FC = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
+    name: "",
     email: "",
     password: "",
   });
@@ -14,8 +15,7 @@ const Login: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Login Data:", formData);
-    // later connect to backend
+    console.log("Signup Data:", formData);
   };
 
   return (
@@ -24,12 +24,22 @@ const Login: React.FC = () => {
         className="bg-white rounded-2xl shadow-lg p-6 flex flex-col justify-center transition-all duration-300"
         style={{ width: "4in", height: "5in" }}
       >
-        <h2 className="text-2xl font-semibold mb-2 text-center">Sign in</h2>
+        <h2 className="text-2xl font-semibold mb-2 text-center">Create Account</h2>
         <p className="text-center text-sm text-gray-500 mb-6">
-          Enter your email and password below to log into your account
+          Enter your details below to create your account
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
+          <input
+            type="text"
+            name="name"
+            placeholder="Full Name"
+            value={formData.name}
+            onChange={handleChange}
+            className="w-full p-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
+          />
+
           <input
             type="email"
             name="email"
@@ -50,31 +60,21 @@ const Login: React.FC = () => {
             required
           />
 
-          <div className="text-right">
-            <button
-              type="button"
-              className="text-blue-600 text-xs hover:underline"
-              onClick={() => alert("Redirect to Forgot Password page")}
-            >
-              Forgot password?
-            </button>
-          </div>
-
           <button
             type="submit"
             className="w-full bg-blue-600 text-white py-2 rounded-md text-sm hover:bg-blue-700 transition"
           >
-            Sign in
+            Sign up
           </button>
         </form>
 
         <p className="text-center text-xs text-gray-500 mt-6">
-          Don’t have an account?{" "}
+          Already have an account?{" "}
           <span
-            onClick={() => navigate("/signup")}
+            onClick={() => navigate("/login")}
             className="text-blue-600 cursor-pointer hover:underline"
           >
-            Sign up
+            Sign in
           </span>
         </p>
       </div>
@@ -82,4 +82,4 @@ const Login: React.FC = () => {
   );
 };
 
-export default Login;
+export default Signup;

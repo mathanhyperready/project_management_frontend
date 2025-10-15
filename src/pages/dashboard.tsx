@@ -1,5 +1,5 @@
 import React from "react";
-import MyCalendar from "../components/calender"; // adjust path
+import MyCalendar from "../features/features/calendar/calender"; // adjust path
 
 
 export default function Dashboard(){
