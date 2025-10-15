@@ -15,7 +15,7 @@ const SignupPage: React.FC = () => {
   const navigate = useNavigate();
 
   const { formData, errors, updateField, setError: setFieldError } = useFormState({
-    name: '',
+    user_name: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -25,8 +25,8 @@ const SignupPage: React.FC = () => {
   const validateForm = (): boolean => {
     let isValid = true;
 
-    if (!validateRequired(formData.name)) {
-      setFieldError('name', 'Name is required');
+    if (!validateRequired(formData.user_name)) {
+      setFieldError('user_name', 'Name is required');
       isValid = false;
     }
 
@@ -59,7 +59,7 @@ const SignupPage: React.FC = () => {
     setLoading(true);
     try {
       await signup({
-        name: formData.name,
+        user_name: formData.user_name,
         email: formData.email,
         password: formData.password,
         role: formData.role,
@@ -91,28 +91,33 @@ const SignupPage: React.FC = () => {
                   <p className="text-red-800 text-sm">{error}</p>
                 </div>
               )}
-              
+              <label>Full Name</label>
               <Input
-                label="Full Name"
                 type="text"
                 autoComplete="name"
                 required
-                value={formData.name}
-                onChange={(e) => updateField('name', e.target.value)}
-                error={errors.name}
+                value={formData.user_name}
+                onChange={(e) => updateField('user_name', e.target.value)}
                 placeholder="Enter your full name"
               />
-
+              <div>
+                {errors.user_name}
+              </div>
+              
+              <label>
+                Email address
+              </label>
               <Input
-                label="Email address"
                 type="email"
                 autoComplete="email"
                 required
                 value={formData.email}
                 onChange={(e) => updateField('email', e.target.value)}
-                error={errors.email}
                 placeholder="Enter your email"
               />
+              <div>
+                {errors.email}
+              </div>
 
               <Select
                 label="Role"
@@ -123,35 +128,40 @@ const SignupPage: React.FC = () => {
                   { value: 'manager', label: 'Manager' },
                 ]}
               />
-
+              <label>Password</label>
               <Input
-                label="Password"
                 type="password"
                 autoComplete="new-password"
                 required
                 value={formData.password}
                 onChange={(e) => updateField('password', e.target.value)}
-                error={errors.password}
+                
                 placeholder="Enter your password"
               />
+              <div>
+                {errors.password}
+              </div>
 
+              <label>
+                Confirm Password
+              </label>
               <Input
-                label="Confirm Password"
                 type="password"
                 autoComplete="new-password"
                 required
                 value={formData.confirmPassword}
                 onChange={(e) => updateField('confirmPassword', e.target.value)}
-                error={errors.confirmPassword}
                 placeholder="Confirm your password"
               />
-
+              <div>
+                {errors.confirmPassword}
+              </div>
               <Button
                 type="submit"
                 variant="primary"
                 size="lg"
                 loading={loading}
-                className="w-full"
+                className="w-full bg-red-400"
               >
                 Create Account
               </Button>
@@ -160,7 +170,7 @@ const SignupPage: React.FC = () => {
                 <span className="text-gray-600">Already have an account? </span>
                 <Link
                   to="/auth/login"
-                  className="font-medium text-primary-600 hover:text-primary-500"
+                  className="font-medium text-primary-600 hover:text-primary-500 "
                 >
                   Sign in
                 </Link>

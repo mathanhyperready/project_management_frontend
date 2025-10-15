@@ -1,8 +1,8 @@
 export interface User {
   id: string;
-  name: string;
+  user_name: string;
   email: string;
-  role: 'admin' | 'manager' | 'user';
+  role?: 'admin' | 'manager' | 'user';
   avatar?: string;
   createdAt: string;
 }
@@ -42,14 +42,14 @@ export interface LoginInput {
 }
 
 export interface SignupInput {
-  name: string;
+  user_name: string;
   email: string;
   password: string;
   role: 'user' | 'manager';
 }
 
 export interface AuthResponse {
-  token: string;
+  access_token: string;
   user: User;
 }
 

@@ -28,23 +28,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (credentials: LoginInput) => {
-    // replace with real API call
-    // const { token, user: userData } = await authAPI.login(credentials);
+    const response = await authAPI.login(credentials);
 
-    // mock login
-    const token = 'mocked_jwt_token';
-    const userData = { id: 1, name: 'Mock User', email: credentials.email, role: 'user' };
-
-    localStorage.setItem('access_token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    setUser(userData as any);
+    localStorage.setItem('access_token', response.access_token);
+    localStorage.setItem('user', JSON.stringify(response.user));
+    setUser(response.user as any);
   };
 
   const signup = async (userData: SignupInput) => {
     // replace with real API call
-    const token = 'mocked_jwt_token';
-    localStorage.setItem('access_token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
+    const response = await authAPI.signup(userData);
+    localStorage.setItem('access_token', response.access_token);
+    localStorage.setItem('user', JSON.stringify(response.user));
     setUser(userData as any);
   };
 
