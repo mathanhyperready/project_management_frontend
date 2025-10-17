@@ -10,8 +10,10 @@ const SignupPage = React.lazy(() => import('../features/features/auth/SignupPage
 const ForgotPasswordPage = React.lazy(() => import('../features/features/auth/ForgotPasswordPage'));
 const DashboardPage = React.lazy(() => import('../features/features/dashboard/DashboardPage'));
 const ProjectList = React.lazy(() => import('../features/features/projects/ProjectList'));
-// const ProjectForm = React.lazy(() => import('../../features/projects/ProjectForm'));
-// const ProjectDetail = React.lazy(() => import('../../features/projects/ProjectDetail'));
+// const ProjectForm = React.lazy(() => import('../features/features/projects/ProjectForm'));
+const ProjectDetail = React.lazy(() => import('../features/features/projects/ProjectDetail'));
+const RoleList = React.lazy(() => import('../features/features/role/RoleList'));
+const UserList = React.lazy(() => import('../features/features/user/UserList'));
 // const TaskList = React.lazy(() => import('../../features/tasks/TaskList'));
 // const TaskForm = React.lazy(() => import('../../features/tasks/TaskForm'));
 // const TaskDetail = React.lazy(() => import('../../features/tasks/TaskDetail'));
@@ -49,9 +51,29 @@ export const AppRoutes: React.FC = () => {
             <ProjectList />
           </ProtectedRoute>
         } />
+        {/* <Route path="/projects" element={
+          <ProtectedRoute>
+            <ProjectForm />
+          </ProtectedRoute>
+        } /> */}
+         <Route path="/projects/:id" element={
+          <ProtectedRoute>
+            <ProjectDetail />
+          </ProtectedRoute>
+        } />
         <Route path="/calendar" element={
           <ProtectedRoute>
             <CalendarPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/role" element={
+          <ProtectedRoute>
+            <RoleList />
+          </ProtectedRoute>
+        } />
+        <Route path="/user" element={
+          <ProtectedRoute>
+            <UserList />
           </ProtectedRoute>
         } />
         {/* <Route path="/projects" element={
