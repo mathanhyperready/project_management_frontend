@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Star, MoreVertical, Plus, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
 
 interface TimeEntry {
   id: number;
@@ -17,7 +19,7 @@ interface TeamMember {
   role: string;
 }
 
-const ProjectDetailPage: React.FC = () => {
+const ProjectDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState("timesheet");
   const [isFavorite, setIsFavorite] = useState(false);
 
@@ -30,6 +32,7 @@ const ProjectDetailPage: React.FC = () => {
   const [startDate, setStartDate] = useState("2025-10-01");
   const [rate, setRate] = useState("0.00");
   const [visibility, setVisibility] = useState("public");
+  const navigate = useNavigate();
 
   // Stats
   const [totalTracked] = useState("3.01h");
@@ -88,13 +91,13 @@ const ProjectDetailPage: React.FC = () => {
     }}>
       {/* Header */}
       <div style={{ marginBottom: "1rem" }}>
-        <div style={{
+        <div onClick={() => navigate(`/projects/`)}style={{
           fontSize: "0.875rem",
           color: "#22d3ee",
           marginBottom: "0.5rem",
           cursor: "pointer",
         }}>
-          Projects
+          ⇦&nbsp;<u>Projects</u>
         </div>
         <div style={{
           display: "flex",
@@ -962,4 +965,4 @@ const ProjectDetailPage: React.FC = () => {
   );
 };
 
-export default ProjectDetailPage;
+export default ProjectDetail;

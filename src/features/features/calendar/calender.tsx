@@ -188,25 +188,9 @@ const CalendarView: React.FC = () => {
   };
 
   const handleNext = () => {
-  let newDate;
-
-  switch (view) {
-    case Views.DAY:
-      newDate = moment(date).add(1, "day").toDate();
-      break;
-    case Views.WEEK:
-      newDate = moment(date).add(1, "week").toDate();
-      break;
-    case Views.MONTH:
-      newDate = moment(date).add(1, "month").toDate();
-      break;
-    default:
-      newDate = moment(date).add(1, "day").toDate();
-  }
-
-  setDate(newDate);
-};
-
+    const newDate = moment(date).add(view === Views.DAY ? 1 : 7, "days").toDate();
+    setDate(newDate);
+  };
 
   const handlePrev = () => {
     const newDate = moment(date).subtract(view === Views.DAY ? 1 : 7, "days").toDate();
@@ -214,13 +198,13 @@ const CalendarView: React.FC = () => {
   };
 
   const getDateRangeText = () => {
-  if (view === Views.WEEK) {
-    const startOfWeek = moment(date).startOf('week');
-    const endOfWeek = moment(date).endOf('week');
-    return `${startOfWeek.format('ddd, DD MMM YYYY')} - ${endOfWeek.format('ddd, DD MMM YYYY')}`;
-  }
-  return moment(date).format('ddd, DD MMM YYYY');
-};
+    if (view === Views.WEEK) {
+      const startOfWeek = moment(date).startOf('week');
+      const endOfWeek = moment(date).endOf('week');
+      return `${startOfWeek.format('DD/MM/YYYY')} - ${endOfWeek.format('DD/MM/YYYY')}`;
+    }
+    return moment(date).format('DD/MM/YYYY');
+  };
 
   const CustomToolbar = () => (
     <div style={{
@@ -385,7 +369,7 @@ const CalendarView: React.FC = () => {
             borderRadius: "8px",
             border: "1px solid #e5e7eb"
           }}
-          step={60}
+          step={15}
           timeslots={1}
           date={date}
           onNavigate={handleNavigate}

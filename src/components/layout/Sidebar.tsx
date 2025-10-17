@@ -7,6 +7,9 @@ const navigation = [
   { name: 'Projects', href: '/projects', icon: '📁' },
   { name: 'Timesheet', href: '/tasks', icon: '✅' },
   { name: 'Calendar', href: '/calendar', icon: '📅' },
+  { name: 'User', href: '/user', icon: '👥' },
+  { name: 'Role', href: '/role', icon: '👤' },
+  { name: 'Client', href: '/client', icon: '🤝' },
 ];
 
 const adminNavigation = [
