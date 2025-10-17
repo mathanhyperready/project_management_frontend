@@ -83,7 +83,7 @@ export const Sidebar: React.FC = () => {
               </div>
             </div>
             <div className="ml-3 flex-1">
-              <p className="text-sm font-medium text-gray-700">{user?.name}</p>
+              <p className="text-sm font-medium text-gray-700">{user?.user_name}</p>
               <p className="text-xs font-medium text-gray-500 capitalize">{user?.role}</p>
             </div>
           </div>

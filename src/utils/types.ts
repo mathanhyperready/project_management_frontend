@@ -42,7 +42,7 @@ export interface LoginInput {
 }
 
 export interface SignupInput {
-  name: string;
+  user_name: string;
   email: string;
   password: string;
   role: 'user' | 'manager';

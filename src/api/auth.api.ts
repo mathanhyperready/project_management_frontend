@@ -1,14 +1,15 @@
 import api from './axios';
 import type { LoginInput, SignupInput, AuthResponse, User } from '../utils/types';
+import { API_ENDPOINTS } from '../services/endpoint';
 
 export const authAPI = {
   login: async (credentials: LoginInput): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>('/auth/login', credentials);
+    const response = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.SIGNIN, credentials);
     return response.data;
   },
 
   signup: async (userData: SignupInput): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>('/auth/register', userData);
+    const response = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.SIGNUP, userData);
     return response.data;
   },
 

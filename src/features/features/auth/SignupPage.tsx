@@ -59,7 +59,7 @@ const SignupPage: React.FC = () => {
     setLoading(true);
     try {
       await signup({
-        name: formData.name,
+        user_name: formData.name,
         email: formData.email,
         password: formData.password,
         role: formData.role,
