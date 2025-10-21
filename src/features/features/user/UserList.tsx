@@ -1,4 +1,4 @@
-import { MoreVertical, Trash2, X } from "lucide-react";
+import { MoreVertical, Trash2, X, Eye, EyeOff } from "lucide-react";
 import React, { useState, useRef, useEffect } from "react";
 
 interface User {
@@ -14,87 +14,142 @@ const UserList: React.FC = () => {
   const [users, setUsers] = useState<User[]>([
     {
       id: 1,
-      user_name: "john_doe",
+      user_name: "Siva",
       password: "********",
-      email: "john@example.com",
+      email: "siva@example.com",
       rolename: "Administrator",
       status: "Active",
     },
     {
       id: 2,
-      user_name: "jane_smith",
+      user_name: "Madhan",
       password: "********",
-      email: "jane@example.com",
+      email: "madhan@example.com",
       rolename: "Manager",
       status: "Active",
     },
     {
       id: 3,
-      user_name: "bob_wilson",
+      user_name: "Prakash",
       password: "********",
-      email: "bob@example.com",
+      email: "prakash@example.com",
       rolename: "Employee",
       status: "Inactive",
     },
   ]);
 
-  const [showModal, setShowModal] = useState(false);
-  const [userName, setUserName] = useState("");
-  const [password, setPassword] = useState("");
-  const [email, setEmail] = useState("");
-  const [roleName, setRoleName] = useState("Employee");
-  const [status, setStatus] = useState<"Active" | "Inactive">("Active");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  // Create form states
+  const [createUserName, setCreateUserName] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
+  const [createRoleName, setCreateRoleName] = useState("Employee");
+  const [createStatus, setCreateStatus] = useState<"Active" | "Inactive">("Active");
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+
+  // Edit form states
+  const [editUserName, setEditUserName] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editRoleName, setEditRoleName] = useState("Employee");
+  const [editStatus, setEditStatus] = useState<"Active" | "Inactive">("Active");
+  const [showEditPassword, setShowEditPassword] = useState(false);
+
   const [showMenu, setShowMenu] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Create new user
   const handleCreate = () => {
-    if (!userName.trim() || !email.trim() || !password.trim()) {
+    if (!createUserName.trim() || !createEmail.trim() || !createPassword.trim()) {
       alert("All fields are required!");
+      return;
+    }
+
+    // Password validation
+    if (createPassword.length <= 6) {
+      alert("Password must be more than 6 characters!");
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(createEmail)) {
       alert("Please enter a valid email address!");
       return;
     }
 
     const newUser: User = {
       id: users.length ? users[users.length - 1].id + 1 : 1,
-      user_name: userName,
+      user_name: createUserName,
       password: "********", // Password is masked
-      email: email,
-      rolename: roleName,
-      status: "Active", // Default status is Active
+      email: createEmail,
+      rolename: createRoleName,
+      status: createStatus,
     };
 
     setUsers([...users, newUser]);
-    setUserName("");
-    setPassword("");
-    setEmail("");
-    setRoleName("Employee");
-    setStatus("Active");
-    setShowModal(false);
+    setCreateUserName("");
+    setCreatePassword("");
+    setCreateEmail("");
+    setCreateRoleName("Employee");
+    setCreateStatus("Active");
+    setShowCreateModal(false);
   };
 
-  // Update status to Active
-  const handleSetActive = (id: number) => {
-    setUsers((prev) =>
-      prev.map((user) => (user.id === id ? { ...user, status: "Active" } : user))
-    );
+  // Open edit modal
+  const handleEdit = (user: User) => {
+    setEditingUser(user);
+    setEditUserName(user.user_name);
+    setEditPassword(""); // Leave blank or handle separately
+    setEditEmail(user.email);
+    setEditRoleName(user.rolename);
+    setEditStatus(user.status);
+    setShowEditModal(true);
     setShowMenu(null);
   };
 
-  // Update status to Inactive
-  const handleSetInactive = (id: number) => {
-    setUsers((prev) =>
-      prev.map((user) =>
-        user.id === id ? { ...user, status: "Inactive" } : user
-      )
-    );
-    setShowMenu(null);
+  // Update user
+  const handleUpdate = () => {
+    if (!editUserName.trim() || !editEmail.trim()) {
+      alert("User Name and Email are required!");
+      return;
+    }
+
+    // Password validation if provided
+    if (editPassword && editPassword.length <= 6) {
+      alert("New password must be more than 6 characters!");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editEmail)) {
+      alert("Please enter a valid email address!");
+      return;
+    }
+
+    if (editingUser) {
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === editingUser.id
+            ? {
+                ...user,
+                user_name: editUserName,
+                password: editPassword ? "********" : user.password, // Update if new password provided
+                email: editEmail,
+                rolename: editRoleName,
+                status: editStatus,
+              }
+            : user
+        )
+      );
+      setShowEditModal(false);
+      setEditingUser(null);
+      setEditPassword("");
+    }
   };
 
   // Delete user
@@ -144,7 +199,7 @@ const UserList: React.FC = () => {
           Users
         </h1>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => setShowCreateModal(true)}
           style={{
             padding: "0.625rem 1.5rem",
             backgroundColor: "#22d3ee",
@@ -158,7 +213,7 @@ const UserList: React.FC = () => {
             letterSpacing: "0.5px",
           }}
         >
-          ✚ Create User
+          Create User
         </button>
       </div>
 
@@ -318,7 +373,7 @@ const UserList: React.FC = () => {
                       }}
                     >
                       <button
-                        onClick={() => handleSetActive(user.id)}
+                        onClick={() => handleEdit(user)}
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -340,32 +395,7 @@ const UserList: React.FC = () => {
                           (e.currentTarget.style.backgroundColor = "transparent")
                         }
                       >
-                        ✓ Active
-                      </button>
-                      <button
-                        onClick={() => handleSetInactive(user.id)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          padding: "0.75rem 1.25rem",
-                          width: "100%",
-                          background: "none",
-                          border: "none",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          fontSize: "0.875rem",
-                          color: "#374151",
-                          transition: "background-color 0.15s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor = "#f3f4f6")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor = "transparent")
-                        }
-                      >
-                        ✗ Inactive
+                        Edit
                       </button>
                       <button
                         onClick={() => handleDelete(user.id)}
@@ -417,7 +447,7 @@ const UserList: React.FC = () => {
       </div>
 
       {/* Create Modal */}
-      {showModal && (
+      {showCreateModal && (
         <div
           style={{
             position: "fixed",
@@ -444,12 +474,12 @@ const UserList: React.FC = () => {
           >
             <button
               onClick={() => {
-                setShowModal(false);
-                setUserName("");
-                setPassword("");
-                setEmail("");
-                setRoleName("Employee");
-                setStatus("Active");
+                setShowCreateModal(false);
+                setCreateUserName("");
+                setCreatePassword("");
+                setCreateEmail("");
+                setCreateRoleName("Employee");
+                setCreateStatus("Active");
               }}
               style={{
                 position: "absolute",
@@ -490,8 +520,8 @@ const UserList: React.FC = () => {
               <input
                 type="text"
                 placeholder="Enter username"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
+                value={createUserName}
+                onChange={(e) => setCreateUserName(e.target.value)}
                 style={{
                   width: "100%",
                   border: "1px solid #d1d5db",
@@ -519,8 +549,8 @@ const UserList: React.FC = () => {
               <input
                 type="email"
                 placeholder="Enter email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={createEmail}
+                onChange={(e) => setCreateEmail(e.target.value)}
                 style={{
                   width: "100%",
                   border: "1px solid #d1d5db",
@@ -545,20 +575,38 @@ const UserList: React.FC = () => {
               >
                 Password
               </label>
-              <input
-                type="password"
-                placeholder="Enter password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{
-                  width: "100%",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "0.5rem",
-                  padding: "0.5rem 0.75rem",
-                  fontSize: "0.875rem",
-                  outline: "none",
-                }}
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showCreatePassword ? "text" : "password"}
+                  placeholder="Enter password"
+                  value={createPassword}
+                  onChange={(e) => setCreatePassword(e.target.value)}
+                  style={{
+                    width: "100%",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "0.5rem",
+                    padding: "0.5rem 0.75rem",
+                    fontSize: "0.875rem",
+                    outline: "none",
+                    paddingRight: "2.5rem",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePassword(!showCreatePassword)}
+                  style={{
+                    position: "absolute",
+                    right: "0.5rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {showCreatePassword ? <EyeOff size={18} color="#6b7280" /> : <Eye size={18} color="#6b7280" />}
+                </button>
+              </div>
             </div>
 
             {/* Role */}
@@ -575,8 +623,8 @@ const UserList: React.FC = () => {
                 Role
               </label>
               <select
-                value={roleName}
-                onChange={(e) => setRoleName(e.target.value)}
+                value={createRoleName}
+                onChange={(e) => setCreateRoleName(e.target.value)}
                 style={{
                   width: "100%",
                   border: "1px solid #d1d5db",
@@ -606,11 +654,9 @@ const UserList: React.FC = () => {
               >
                 Status
               </label>
-              <input
-                type="text"
-                value="Active"
-                readOnly
-                disabled
+              <select
+                value={createStatus}
+                onChange={(e) => setCreateStatus(e.target.value as "Active" | "Inactive")}
                 style={{
                   width: "100%",
                   border: "1px solid #d1d5db",
@@ -618,11 +664,12 @@ const UserList: React.FC = () => {
                   padding: "0.5rem 0.75rem",
                   fontSize: "0.875rem",
                   outline: "none",
-                  backgroundColor: "#f9fafb",
-                  color: "#6b7280",
-                  cursor: "not-allowed",
+                  backgroundColor: "white",
                 }}
-              />
+              >
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
             </div>
 
             <div
@@ -634,12 +681,12 @@ const UserList: React.FC = () => {
             >
               <button
                 onClick={() => {
-                  setShowModal(false);
-                  setUserName("");
-                  setPassword("");
-                  setEmail("");
-                  setRoleName("Employee");
-                  setStatus("Active");
+                  setShowCreateModal(false);
+                  setCreateUserName("");
+                  setCreatePassword("");
+                  setCreateEmail("");
+                  setCreateRoleName("Employee");
+                  setCreateStatus("Active");
                 }}
                 style={{
                   padding: "0.5rem 1rem",
@@ -667,6 +714,274 @@ const UserList: React.FC = () => {
                 }}
               >
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && editingUser && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "1rem",
+              width: "28rem",
+              padding: "1.5rem",
+              position: "relative",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+            }}
+          >
+            <button
+              onClick={() => {
+                setShowEditModal(false);
+                setEditingUser(null);
+                setEditPassword("");
+              }}
+              style={{
+                position: "absolute",
+                top: "0.75rem",
+                right: "0.75rem",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <X size={20} color="#6b7280" />
+            </button>
+
+            <h2
+              style={{
+                fontSize: "1.25rem",
+                fontWeight: "600",
+                marginBottom: "1rem",
+                color: "#374151",
+              }}
+            >
+              Edit User
+            </h2>
+
+            {/* User Name */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#374151",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                User Name
+              </label>
+              <input
+                type="text"
+                placeholder="Enter username"
+                value={editUserName}
+                onChange={(e) => setEditUserName(e.target.value)}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            {/* Email */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#374151",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Email
+              </label>
+              <input
+                type="email"
+                placeholder="Enter email address"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            {/* Password */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#374151",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                New Password (optional)
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showEditPassword ? "text" : "password"}
+                  placeholder="Enter new password or leave blank"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  style={{
+                    width: "100%",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "0.5rem",
+                    padding: "0.5rem 0.75rem",
+                    fontSize: "0.875rem",
+                    outline: "none",
+                    paddingRight: "2.5rem",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEditPassword(!showEditPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "0.5rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {showEditPassword ? <EyeOff size={18} color="#6b7280" /> : <Eye size={18} color="#6b7280" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Role */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#374151",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Role
+              </label>
+              <select
+                value={editRoleName}
+                onChange={(e) => setEditRoleName(e.target.value)}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                  backgroundColor: "white",
+                }}
+              >
+                <option value="Administrator">Administrator</option>
+                <option value="Manager">Manager</option>
+                <option value="Employee">Employee</option>
+              </select>
+            </div>
+
+            {/* Status */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#374151",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Status
+              </label>
+              <select
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value as "Active" | "Inactive")}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                  backgroundColor: "white",
+                }}
+              >
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "0.75rem",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingUser(null);
+                  setEditPassword("");
+                }}
+                style={{
+                  padding: "0.5rem 1rem",
+                  borderRadius: "0.5rem",
+                  backgroundColor: "#e5e7eb",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                  color: "#374151",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdate}
+                style={{
+                  padding: "0.5rem 1rem",
+                  borderRadius: "0.5rem",
+                  backgroundColor: "#22d3ee",
+                  color: "white",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                  fontWeight: "600",
+                }}
+              >
+                Update
               </button>
             </div>
           </div>

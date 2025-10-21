@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Star, MoreVertical, Plus, X } from "lucide-react";
+import { Star, MoreVertical, Plus, X, ArrowLeft } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
 
 interface TimeEntry {
   id: number;
@@ -18,6 +19,9 @@ interface TeamMember {
 }
 
 const ProjectDetailPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { id } = useParams();
+  
   const [activeTab, setActiveTab] = useState("timesheet");
   const [isFavorite, setIsFavorite] = useState(false);
 
@@ -88,13 +92,19 @@ const ProjectDetailPage: React.FC = () => {
     }}>
       {/* Header */}
       <div style={{ marginBottom: "1rem" }}>
-        <div style={{
-          fontSize: "0.875rem",
-          color: "#22d3ee",
-          marginBottom: "0.5rem",
-          cursor: "pointer",
-        }}>
-          Projects
+        <div 
+          onClick={() => navigate('/projects')}
+          style={{
+            fontSize: "0.875rem",
+            color: "#22d3ee",
+            marginBottom: "0.5rem",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.25rem",
+          }}
+        >
+          <ArrowLeft size={16} /> Projects
         </div>
         <div style={{
           display: "flex",
@@ -107,7 +117,7 @@ const ProjectDetailPage: React.FC = () => {
             color: "#6b7280",
             margin: 0,
           }}>
-            {projectName}
+            {projectName} {id && `(ID: ${id})`}
           </h1>
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button
