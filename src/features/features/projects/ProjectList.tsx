@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Star, MoreVertical, ChevronDown, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-
 
 interface Project {
   id: number;
@@ -56,7 +54,6 @@ const ProjectsPage: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [billableFilter, setBillableFilter] = useState<string>("all");
-  
 
   const [showActiveDropdown, setShowActiveDropdown] = useState(false);
   const [showClientDropdown, setShowClientDropdown] = useState(false);
@@ -65,14 +62,12 @@ const ProjectsPage: React.FC = () => {
   const [activeProjectMenu, setActiveProjectMenu] = useState<number | null>(null);
 
   // Modal states
-  const [showModal, setShowModal] =  useState<number | null>(null)
+  const [showModal, setShowModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showCustomColorPicker, setShowCustomColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState("#8d6e63");
-  const [showMenu, setShowMenu] = useState<number | null>(null);
-  
 
   // Form states
   const [projectName, setProjectName] = useState("");
@@ -112,7 +107,7 @@ const ProjectsPage: React.FC = () => {
     setSelectedColor("#a855f7");
     setIsPublic(true);
     setStartDate("");
-    setShowModal(null);
+    setShowModal(true);
   };
 
   const openEditModal = (project: Project) => {
@@ -124,7 +119,7 @@ const ProjectsPage: React.FC = () => {
     setIsPublic(project.access === "Public");
     setStartDate(project.startDate);
     setActiveProjectMenu(null);
-    setShowModal(null);
+    setShowModal(true);
   };
 
   const handleCreateProject = () => {
@@ -144,7 +139,7 @@ const ProjectsPage: React.FC = () => {
         startDate: startDate || new Date().toISOString().split('T')[0],
       };
       setProjects([...projects, newProject]);
-      setShowModal(null);
+      setShowModal(false);
     }
   };
 
@@ -162,7 +157,7 @@ const ProjectsPage: React.FC = () => {
             }
           : p
       ));
-      setShowModal(null);
+      setShowModal(false);
     }
   };
 
@@ -190,19 +185,25 @@ const ProjectsPage: React.FC = () => {
 
   // Close dropdown when clicking outside
   useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-          setShowModal(null);
-        }
-      };
-  
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }, []);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setActiveProjectMenu(null);
+        setShowActiveDropdown(false);
+        setShowClientDropdown(false);
+        setShowBillingDropdown(false);
+        setShowExportDropdown(false);
+        // Don't close color picker or modal here
+      }
+    };
 
-  const navigate = useNavigate();
+    if (!showModal) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showModal]);
 
   return (
     <div style={{ 
@@ -212,7 +213,6 @@ const ProjectsPage: React.FC = () => {
     }}
     ref={menuRef}
     >
-      
       {/* Header */}
       <div style={{
         display: "flex",
@@ -661,7 +661,7 @@ const ProjectsPage: React.FC = () => {
               <th style={{ padding: "0.75rem 1.5rem", textAlign: "left", width: "40px" }}>
                 <input type="checkbox" style={{ cursor: "pointer" }} />
               </th>
-              <th  style={{
+              <th style={{
                 padding: "0.75rem 1.5rem",
                 textAlign: "left",
                 fontSize: "0.75rem",
@@ -670,9 +670,7 @@ const ProjectsPage: React.FC = () => {
                 textTransform: "uppercase",
                 letterSpacing: "0.5px",
               }}>
-                
                 NAME ▲
-
               </th>
               <th style={{
                 padding: "0.75rem 1.5rem",
@@ -739,7 +737,7 @@ const ProjectsPage: React.FC = () => {
                   <input type="checkbox" style={{ cursor: "pointer" }} />
                 </td>
                 <td style={{ padding: "1rem 1.5rem" }}>
-                  <div  onClick={() => navigate(`/projects/${project.id}`)} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <span style={{
                       width: "8px",
                       height: "8px",
@@ -902,7 +900,7 @@ const ProjectsPage: React.FC = () => {
                 {isEditMode ? "Edit Project" : "Create new Project"}
               </h2>
               <button
-                onClick={() => setShowModal(null)}
+                onClick={() => setShowModal(false)}
                 style={{
                   background: "none",
                   border: "none",
@@ -1200,7 +1198,7 @@ const ProjectsPage: React.FC = () => {
               gap: "0.75rem",
             }}>
               <button
-                onClick={() => setShowModal(null)}
+                onClick={() => setShowModal(false)}
                 style={{
                   padding: "0.5rem 1.5rem",
                   border: "none",

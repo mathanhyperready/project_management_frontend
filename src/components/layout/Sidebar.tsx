@@ -1,16 +1,35 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { 
+  LayoutDashboard, 
+  FolderKanban, 
+  Clock, 
+  Calendar, 
+  Users, 
+  UserCog, 
+  Building2 
+} from 'lucide-react';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: '📊' },
-  { name: 'Projects', href: '/projects', icon: '📁' },
-  { name: 'Timesheet', href: '/tasks', icon: '✅' },
-  { name: 'Calendar', href: '/calendar', icon: '📅' },
-  { name: 'User', href: '/user', icon: '👥' },
-  { name: 'Role', href: '/role', icon: '👤' },
-  { name: 'Client', href: '/client', icon: '🤝' },
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Projects', href: '/projects', icon: FolderKanban },
+  { name: 'Timesheet', href: '/timesheet', icon: Clock },
+  { name: 'Calendar', href: '/calendar', icon: Calendar },
+  { name: 'User', href: '/user', icon: Users },
+  { name: 'Role', href: '/role', icon: UserCog },
+  { name: 'Client', href: '/client', icon: Building2 },
 ];
+
+// const navigation = [
+//   { name: 'Dashboard', href: '/', icon: '📊' },
+//   { name: 'Projects', href: '/projects', icon: '📁' },
+//   { name: 'Timesheet', href: '/', icon: '✅' },
+//   { name: 'Calendar', href: '/calendar', icon: '📅' },
+//   { name: 'User', href: '/user', icon: '👥' },
+//   { name: 'Role', href: '/role', icon: '👤' },
+//   { name: 'Client', href: '/client', icon: '🤝' },
+// ];
 
 const adminNavigation = [
   { name: 'Users', href: '/admin/users', icon: '👥' },
@@ -46,7 +65,7 @@ export const Sidebar: React.FC = () => {
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
               >
-                <span className="mr-3 text-lg">{item.icon}</span>
+                <span className="mr-3 text-lg"><item.icon className="w-5 h-5" /></span>
                 {item.name}
               </Link>
             ))}

@@ -11,10 +11,11 @@ const ForgotPasswordPage = React.lazy(() => import('../features/features/auth/Fo
 const DashboardPage = React.lazy(() => import('../features/features/dashboard/DashboardPage'));
 const ProjectList = React.lazy(() => import('../features/features/projects/ProjectList'));
 // const ProjectForm = React.lazy(() => import('../features/features/projects/ProjectForm'));
-const ProjectDetail = React.lazy(() => import('../features/features/projects/ProjectDetail'));
+const ProjectDetailPage = React.lazy(() => import('../features/features/projects/ProjectDetail'));
 const RoleList = React.lazy(() => import('../features/features/role/RoleList'));
 const UserList = React.lazy(() => import('../features/features/user/UserList'));
-// const TaskList = React.lazy(() => import('../../features/tasks/TaskList'));
+const ClientList = React.lazy(() => import('../features/features/client/ClientList'));
+const Timesheet = React.lazy(() => import('../features/features/timesheet/TimesheetList'));
 // const TaskForm = React.lazy(() => import('../../features/tasks/TaskForm'));
 // const TaskDetail = React.lazy(() => import('../../features/tasks/TaskDetail'));
 const CalendarPage = React.lazy(() => import('../features/features/calendar/calender'))
@@ -58,12 +59,17 @@ export const AppRoutes: React.FC = () => {
         } /> */}
          <Route path="/projects/:id" element={
           <ProtectedRoute>
-            <ProjectDetail />
+            <ProjectDetailPage />
           </ProtectedRoute>
         } />
         <Route path="/calendar" element={
           <ProtectedRoute>
             <CalendarPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/timesheet" element={
+          <ProtectedRoute>
+            <Timesheet />
           </ProtectedRoute>
         } />
         <Route path="/role" element={
@@ -74,6 +80,11 @@ export const AppRoutes: React.FC = () => {
         <Route path="/user" element={
           <ProtectedRoute>
             <UserList />
+          </ProtectedRoute>
+        } />
+        <Route path="/client" element={
+          <ProtectedRoute>
+            <ClientList />
           </ProtectedRoute>
         } />
         {/* <Route path="/projects" element={
