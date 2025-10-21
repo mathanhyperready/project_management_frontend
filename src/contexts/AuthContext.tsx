@@ -4,7 +4,7 @@ import { authAPI } from '../api/auth.api';
 import type { User, LoginInput, SignupInput } from '../utils/types';
 
 interface AuthContextType {
-  user: User | null;
+  user_name: User | null;
   login: (credentials: LoginInput) => Promise<void>;
   signup: (userData: SignupInput) => Promise<void>;
   logout: () => void;
@@ -15,7 +15,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user_name, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,29 +28,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (credentials: LoginInput) => {
-    // replace with real API call
-    // const { token, user: userData } = await authAPI.login(credentials);
+    const response = await authAPI.login(credentials);
 
-    // mock login
-    const token = 'mocked_jwt_token';
-    const userData = { id: 1, name: 'Mock User', email: credentials.email, role: 'user' };
-
-    localStorage.setItem('access_token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    setUser(userData as any);
+    localStorage.setItem('access_token', response.token);
+    localStorage.setItem('user_name', JSON.stringify(response.user));
+    setUser(response.user as any);
   };
 
   const signup = async (userData: SignupInput) => {
     // replace with real API call
-    const token = 'mocked_jwt_token';
-    localStorage.setItem('access_token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
+    const response = await authAPI.signup(userData);
+    localStorage.setItem('access_token', response.token);
+    localStorage.setItem('user_name', JSON.stringify(response.user));
     setUser(userData as any);
   };
 
   const logout = () => {
     localStorage.removeItem('access_token');
-    localStorage.removeItem('user');
+    localStorage.removeItem('user_name');
     setUser(null);
     window.location.href = '/auth/login';
   };
@@ -58,12 +53,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <AuthContext.Provider
       value={{
-        user,
+        user_name,
         login,
         signup,
         logout,
         loading,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user_name,
       }}
     >
       {children}

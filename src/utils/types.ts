@@ -7,6 +7,14 @@ export interface User {
   createdAt: string;
 }
 
+export interface Role {
+  id: number;
+  name: string;
+  is_enabled: boolean;
+  created_at: string;
+}
+
+
 export interface Project {
   id: string;
   name: string;
@@ -42,7 +50,7 @@ export interface LoginInput {
 }
 
 export interface SignupInput {
-  name: string;
+  user_name: string;
   email: string;
   password: string;
   role: 'user' | 'manager';
