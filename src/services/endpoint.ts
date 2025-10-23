@@ -23,6 +23,20 @@ export const API_ENDPOINTS = {
         GET_SINGLE : '/clients/{client_id}',
         UPDATE : '/clients/{client_id}',
         DELETE : '/clients/{client_id}'
+    },
+    PROJECTS:{
+        GET_ALL: '/projects',
+        CREATE: '/projects',
+        GET_SINGLE : '/projects/{project_id}',
+        UPDATE : '/projects/{project_id}',
+        DELETE : '/projects/{project_id}'
+    },
+    TIMESHEET : {
+        GET_ALL: '/timesheet/project/{timesheet_id}',
+        CREATE: '/timesheet',
+        GET_SINGLE : '/timesheet/{timesheet_id}',
+        UPDATE : '/timesheet/{timesheet_id}',
+        DELETE : '/timesheet/{timesheet_id}'
     }
 
 }

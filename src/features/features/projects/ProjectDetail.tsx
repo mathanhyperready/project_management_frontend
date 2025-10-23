@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Star, MoreVertical, Plus, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
+import { usersAPI } from "../../../api/client.api";
+import type { Client } from "../../../utils/types";
 
 interface TimeEntry {
   id: number;
@@ -22,6 +23,7 @@ interface TeamMember {
 const ProjectDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState("timesheet");
   const [isFavorite, setIsFavorite] = useState(false);
+  const navigate = useNavigate();
 
   // Project data
   const [projectName, setProjectName] = useState("DEMO");
@@ -32,7 +34,11 @@ const ProjectDetail: React.FC = () => {
   const [startDate, setStartDate] = useState("2025-10-01");
   const [rate, setRate] = useState("0.00");
   const [visibility, setVisibility] = useState("public");
-  const navigate = useNavigate();
+
+  // API state
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [clientsError, setClientsError] = useState<string | null>(null);
 
   // Stats
   const [totalTracked] = useState("3.01h");
@@ -61,6 +67,25 @@ const ProjectDetail: React.FC = () => {
   const [newMemberEmail, setNewMemberEmail] = useState("");
   const [newMemberRole, setNewMemberRole] = useState("Member");
 
+  // Fetch clients on component mount
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  const fetchClients = async () => {
+    try {
+      setLoadingClients(true);
+      setClientsError(null);
+      const response = await usersAPI.getClients({ page: 1, limit: 100 });
+      setClients(response.data || []);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      setClientsError("Failed to load clients");
+    } finally {
+      setLoadingClients(false);
+    }
+  };
+
   const handleAddMember = () => {
     if (newMemberEmail) {
       const newMember: TeamMember = {
@@ -79,8 +104,15 @@ const ProjectDetail: React.FC = () => {
     setTeamMembers(teamMembers.filter((m) => m.id !== id));
   };
 
-  const handleSaveSettings = () => {
-    alert("Settings saved successfully!");
+  const handleSaveSettings = async () => {
+    try {
+      // Here you would typically call an API to save project settings
+      // Example: await projectAPI.updateProject(projectId, { projectName, client, ... });
+      alert("Settings saved successfully!");
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      alert("Failed to save settings");
+    }
   };
 
   return (
@@ -91,7 +123,7 @@ const ProjectDetail: React.FC = () => {
     }}>
       {/* Header */}
       <div style={{ marginBottom: "1rem" }}>
-        <div onClick={() => navigate(`/projects/`)}style={{
+        <div onClick={() => navigate(`/projects/`)} style={{
           fontSize: "0.875rem",
           color: "#22d3ee",
           marginBottom: "0.5rem",
@@ -176,7 +208,6 @@ const ProjectDetail: React.FC = () => {
       {/* Timesheet Tab */}
       {activeTab === "timesheet" && (
         <div>
-          {/* Timesheets Table */}
           <div style={{
             backgroundColor: "white",
             borderRadius: "8px",
@@ -313,14 +344,12 @@ const ProjectDetail: React.FC = () => {
       {/* Status Tab */}
       {activeTab === "status" && (
         <div>
-          {/* Stats Cards */}
           <div style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: "1.5rem",
             marginBottom: "2rem",
           }}>
-            {/* Left Card - Time Stats */}
             <div style={{
               backgroundColor: "white",
               borderRadius: "8px",
@@ -411,7 +440,6 @@ const ProjectDetail: React.FC = () => {
               </div>
             </div>
 
-            {/* Right Card - Donut Chart */}
             <div style={{
               backgroundColor: "white",
               borderRadius: "8px",
@@ -537,22 +565,43 @@ const ProjectDetail: React.FC = () => {
               }}>
                 Client
               </label>
-              <select
-                value={client}
-                onChange={(e) => setClient(e.target.value)}
-                style={{
-                  width: "100%",
+              {loadingClients ? (
+                <div style={{
                   padding: "0.75rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
                   fontSize: "0.875rem",
-                  backgroundColor: "white",
-                }}
-              >
-                <option value="">Select client</option>
-                <option value="Client A">Client A</option>
-                <option value="Client B">Client B</option>
-              </select>
+                  color: "#6b7280",
+                }}>
+                  Loading clients...
+                </div>
+              ) : clientsError ? (
+                <div style={{
+                  padding: "0.75rem",
+                  fontSize: "0.875rem",
+                  color: "#ef4444",
+                }}>
+                  {clientsError}
+                </div>
+              ) : (
+                <select
+                  value={client}
+                  onChange={(e) => setClient(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    fontSize: "0.875rem",
+                    backgroundColor: "white",
+                  }}
+                >
+                  <option value="">Select client</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || c.email}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Color */}
