@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Star, MoreVertical, ChevronDown, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Project {
   id: number;
@@ -19,41 +20,98 @@ interface Project {
 const ProjectsPage: React.FC = () => {
   const menuRef = useRef<HTMLDivElement>(null);
   
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: 1,
-      name: "DEMO",
-      client: "",
-      tracked: "3.01h",
-      amount: "0.00 USD",
-      progress: "-",
-      access: "Public",
-      billable: true,
-      active: true,
-      favorite: false,
-      color: "#ec4899",
-      startDate: "2025-10-01",
-    },
-    {
-      id: 2,
-      name: "TEST",
-      client: "",
-      tracked: "0.00h",
-      amount: "0.00 USD",
-      progress: "-",
-      access: "Public",
-      billable: false,
-      active: true,
-      favorite: false,
-      color: "#10b981",
-      startDate: "2025-10-05",
-    },
-  ]);
+  // Initialize as empty array to avoid hardcoded defaults
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  // Load from localStorage or set defaults if empty
+  useEffect(() => {
+    const savedProjects = localStorage.getItem("projects");
+    if (savedProjects) {
+      try {
+        setProjects(JSON.parse(savedProjects));
+      } catch (error) {
+        console.error("Error parsing saved projects:", error);
+        // Fallback to defaults if parsing fails
+        setProjects([
+          {
+            id: 1,
+            name: "DEMO",
+            client: "",
+            tracked: "3.01h",
+            amount: "0.00 USD",
+            progress: "-",
+            access: "Public",
+            billable: true,
+            active: true,
+            favorite: false,
+            color: "#ec4899",
+            startDate: "2025-10-01",
+          },
+          {
+            id: 2,
+            name: "TEST",
+            client: "",
+            tracked: "0.00h",
+            amount: "0.00 USD",
+            progress: "-",
+            access: "Public",
+            billable: false,
+            active: true,
+            favorite: false,
+            color: "#10b981",
+            startDate: "2025-10-05",
+          },
+        ]);
+      }
+    } else {
+      // Set defaults if no saved data
+      setProjects([
+        {
+          id: 1,
+          name: "DEMO",
+          client: "",
+          tracked: "3.01h",
+          amount: "0.00 USD",
+          progress: "-",
+          access: "Public",
+          billable: true,
+          active: true,
+          favorite: false,
+          color: "#ec4899",
+          startDate: "2025-10-01",
+        },
+        {
+          id: 2,
+          name: "TEST",
+          client: "",
+          tracked: "0.00h",
+          amount: "0.00 USD",
+          progress: "-",
+          access: "Public",
+          billable: false,
+          active: true,
+          favorite: false,
+          color: "#10b981",
+          startDate: "2025-10-05",
+        },
+      ]);
+    }
+  }, []);
+
+  // Save to localStorage whenever projects change
+  useEffect(() => {
+    if (projects.length > 0) {  // Optional: Avoid saving empty array initially
+      localStorage.setItem("projects", JSON.stringify(projects));
+    }
+  }, [projects]);
+
+
 
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [billableFilter, setBillableFilter] = useState<string>("all");
+  
 
   const [showActiveDropdown, setShowActiveDropdown] = useState(false);
   const [showClientDropdown, setShowClientDropdown] = useState(false);
@@ -192,18 +250,18 @@ const ProjectsPage: React.FC = () => {
         setShowClientDropdown(false);
         setShowBillingDropdown(false);
         setShowExportDropdown(false);
-        // Don't close color picker or modal here
       }
     };
 
-    if (!showModal) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showModal]);
+  }, []);
+
+  
+
+  const navigate = useNavigate();
 
   return (
     <div style={{ 
@@ -213,6 +271,7 @@ const ProjectsPage: React.FC = () => {
     }}
     ref={menuRef}
     >
+      
       {/* Header */}
       <div style={{
         display: "flex",
@@ -661,7 +720,7 @@ const ProjectsPage: React.FC = () => {
               <th style={{ padding: "0.75rem 1.5rem", textAlign: "left", width: "40px" }}>
                 <input type="checkbox" style={{ cursor: "pointer" }} />
               </th>
-              <th style={{
+              <th  style={{
                 padding: "0.75rem 1.5rem",
                 textAlign: "left",
                 fontSize: "0.75rem",
@@ -670,7 +729,9 @@ const ProjectsPage: React.FC = () => {
                 textTransform: "uppercase",
                 letterSpacing: "0.5px",
               }}>
+                
                 NAME ▲
+
               </th>
               <th style={{
                 padding: "0.75rem 1.5rem",
@@ -737,7 +798,7 @@ const ProjectsPage: React.FC = () => {
                   <input type="checkbox" style={{ cursor: "pointer" }} />
                 </td>
                 <td style={{ padding: "1rem 1.5rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <div  onClick={() => navigate(`/projects/${project.id}`)} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <span style={{
                       width: "8px",
                       height: "8px",

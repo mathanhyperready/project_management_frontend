@@ -7,8 +7,14 @@ export interface User {
   createdAt: string;
 }
 
+export interface TimeEntry {
+  [key: string]: string; // date as key, time as value (HH:MM:SS)
+}
+
+
 export interface Project {
-  id: string;
+  id: number;
+  color: string;
   name: string;
   description: string;
   startDate: string;
@@ -18,6 +24,7 @@ export interface Project {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  timeEntries: TimeEntry;
 }
 
 export interface Task {
@@ -86,4 +93,25 @@ export interface TaskFilters {
   priority?: string;
   dueDate?: string;
   search?: string;
+}
+export interface EventType {
+  id: number;
+  title: string;
+  start: Date;
+  end: Date;
+  description?: string;
+  project?: string;
+  tags?: string[];
+  billable?: boolean;
+}
+
+
+
+export interface AppContextType {
+  events: EventType[];
+  projects: Project[];
+  addEvent: (event: EventType) => void;
+  updateEvent: (id: number, event: Partial<EventType>) => void;
+  deleteEvent: (id: number) => void;
+  updateProjects: (projects: Project[]) => void;
 }
