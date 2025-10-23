@@ -4,7 +4,7 @@ import { authAPI } from '../api/auth.api';
 import type { User, LoginInput, SignupInput } from '../utils/types';
 
 interface AuthContextType {
-  user: User | null;
+  u_name: User | null;
   login: (credentials: LoginInput) => Promise<void>;
   signup: (userData: SignupInput) => Promise<void>;
   logout: () => void;
@@ -58,7 +58,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <AuthContext.Provider
       value={{
-        user,
+        u_name : user,
         login,
         signup,
         logout,
