@@ -177,7 +177,9 @@ export const AppRoutes: React.FC = () => {
         {/* Protected routes */}
         <Route path="/" element={
           <ProtectedRoute>
+            <AppProvider >
             <DashboardPage />
+            </AppProvider>
           </ProtectedRoute>
         } />
         <Route path="/projects" element={
