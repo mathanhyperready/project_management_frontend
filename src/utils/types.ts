@@ -15,10 +15,12 @@ export interface Role {
   name: string;
   is_enabled: boolean;
   created_at: string;
+
 }
 
 export interface TimeEntry {
   [key: string]: string; // date as key, time as value (HH:MM:SS)
+
 }
 
 
