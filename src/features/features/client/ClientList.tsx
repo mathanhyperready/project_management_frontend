@@ -1,72 +1,133 @@
 import { MoreVertical, Trash2, X } from "lucide-react";
 import React, { useState, useRef, useEffect } from "react";
-
-interface Client {
-  id: number;
-  clientname: string;
-  status: "Active" | "Inactive";
-}
+import { usersAPI } from "../../../api/client.api";
+import type { Client } from "../../../utils/types";
 
 const ClientList: React.FC = () => {
-  const [clients, setClients] = useState<Client[]>([
-    { id: 1, clientname: "JK Tyres", status: "Active" },
-    { id: 2, clientname: "Candere", status: "Active" },
-    { id: 3, clientname: "Kalyan", status: "Inactive" },
-  ]);
-
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [clientName, setClientName] = useState("");
+  const [name, setname] = useState("");
+  const [address, setAddress] = useState("");
+  const [contact, setContact] = useState("");
+  const [email, setEmail] = useState("");
+  const [notes, setNotes] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [showMenu, setShowMenu] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Fetch clients on component mount
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  const fetchClients = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await usersAPI.getClients();
+      console.log("API Response:", response); // Debug log
+      
+      // Handle different response formats
+      let clientData: Client[] = [];
+      if (Array.isArray(response)) {
+        clientData = response;
+      } else if (response && typeof response === 'object') {
+        // Try common pagination property names
+        clientData = (response as any).data || (response as any).results || [];
+      }
+      
+      console.log("Parsed clients:", clientData);
+      setClients(clientData);
+    } catch (err: any) {
+      setError(err.message || "Failed to fetch clients");
+      console.error("Error fetching clients:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Create new client
-  const handleCreate = () => {
-    if (!clientName.trim()) {
+  const handleCreate = async () => {
+    if (!name.trim()) {
       alert("Client name is required!");
       return;
     }
 
-    const newClient: Client = {
-      id: clients.length ? clients[clients.length - 1].id + 1 : 1,
-      clientname: clientName,
-      status: isActive ? "Active" : "Inactive",
-    };
+    try {
+      const newClientData = {
+        name: name,
+        address: address,
+        contact: contact,
+        email: email,
+        notes: notes,
+        is_enabled: isActive,
+      };
 
-    setClients([...clients, newClient]);
-    setClientName("");
-    setIsActive(true);
-    setShowModal(false);
+      const createdClient = await usersAPI.createClient(newClientData);
+      setClients([...clients, createdClient]);
+      
+      // Reset form
+      setname("");
+      setAddress("");
+      setContact("");
+      setEmail("");
+      setNotes("");
+      setIsActive(true);
+      setShowModal(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to create client");
+      console.error("Error creating client:", err);
+    }
   };
 
   // Update status to Active
-  const handleSetActive = (id: number) => {
-    setClients((prev) =>
-      prev.map((client) =>
-        client.id === id ? { ...client, status: "Active" } : client
-      )
-    );
-    setShowMenu(null);
+  const handleSetActive = async (id: number) => {
+    try {
+      await usersAPI.updateClient(id, { is_enabled: true });
+      setClients((prev) =>
+        prev.map((client) =>
+          client.id === id ? { ...client, is_enabled: true } : client
+        )
+      );
+      setShowMenu(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to update client");
+      console.error("Error updating client:", err);
+    }
   };
 
   // Update status to Inactive
-  const handleSetInactive = (id: number) => {
-    setClients((prev) =>
-      prev.map((client) =>
-        client.id === id ? { ...client, status: "Inactive" } : client
-      )
-    );
-    setShowMenu(null);
+  const handleSetInactive = async (id: number) => {
+    try {
+      await usersAPI.updateClient(id, { is_enabled: false });
+      setClients((prev) =>
+        prev.map((client) =>
+          client.id === id ? { ...client, is_enabled: false } : client
+        )
+      );
+      setShowMenu(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to update client");
+      console.error("Error updating client:", err);
+    }
   };
 
   // Delete client
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     const confirmDelete = window.confirm(
       "Are you sure you want to delete this client?"
     );
     if (confirmDelete) {
-      setClients((prev) => prev.filter((r) => r.id !== id));
-      setShowMenu(null);
+      try {
+        await usersAPI.deleteClient(id);
+        setClients((prev) => prev.filter((r) => r.id !== id));
+        setShowMenu(null);
+      } catch (err: any) {
+        alert(err.message || "Failed to delete client");
+        console.error("Error deleting client:", err);
+      }
     }
   };
 
@@ -83,6 +144,35 @@ const ClientList: React.FC = () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  if (loading) {
+    return (
+      <div style={{ padding: "1.5rem", textAlign: "center" }}>
+        <p style={{ color: "#6b7280" }}>Loading clients...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: "1.5rem", textAlign: "center" }}>
+        <p style={{ color: "#dc2626", marginBottom: "1rem" }}>{error}</p>
+        <button
+          onClick={fetchClients}
+          style={{
+            padding: "0.5rem 1rem",
+            backgroundColor: "#22d3ee",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "1.5rem" }} ref={menuRef}>
@@ -190,7 +280,7 @@ const ClientList: React.FC = () => {
                   <input type="checkbox" style={{ cursor: "pointer" }} />
                 </td>
                 <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
-                  {client.clientname}
+                  {client.name}
                 </td>
                 <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
                   <span
@@ -199,12 +289,11 @@ const ClientList: React.FC = () => {
                       borderRadius: "9999px",
                       fontSize: "0.75rem",
                       fontWeight: "500",
-                      backgroundColor:
-                        client.status === "Active" ? "#d1fae5" : "#fee2e2",
-                      color: client.status === "Active" ? "#065f46" : "#991b1b",
+                      backgroundColor: client.is_enabled ? "#d1fae5" : "#fee2e2",
+                      color: client.is_enabled ? "#065f46" : "#991b1b",
                     }}
                   >
-                    {client.status}
+                    {client.is_enabled ? "Active" : "Inactive"}
                   </span>
                 </td>
                 <td
@@ -360,7 +449,9 @@ const ClientList: React.FC = () => {
             style={{
               backgroundColor: "white",
               borderRadius: "1rem",
-              width: "24rem",
+              width: "32rem",
+              maxHeight: "90vh",
+              overflowY: "auto",
               padding: "1.5rem",
               position: "relative",
               boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
@@ -369,7 +460,11 @@ const ClientList: React.FC = () => {
             <button
               onClick={() => {
                 setShowModal(false);
-                setClientName("");
+                setname("");
+                setAddress("");
+                setContact("");
+                setEmail("");
+                setNotes("");
                 setIsActive(true);
               }}
               style={{
@@ -410,8 +505,8 @@ const ClientList: React.FC = () => {
               <input
                 type="text"
                 placeholder="Enter client name"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
+                value={name}
+                onChange={(e) => setname(e.target.value)}
                 style={{
                   width: "100%",
                   border: "1px solid #d1d5db",
@@ -419,6 +514,119 @@ const ClientList: React.FC = () => {
                   padding: "0.5rem 0.75rem",
                   fontSize: "0.875rem",
                   outline: "none",
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#374151",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Address
+              </label>
+              <input
+                type="text"
+                placeholder="Enter address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#374151",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Contact
+              </label>
+              <input
+                type="text"
+                placeholder="Enter contact number"
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#374151",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Email
+              </label>
+              <input
+                type="email"
+                placeholder="Enter email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#374151",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Notes
+              </label>
+              <textarea
+                placeholder="Enter notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                style={{
+                  width: "100%",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.5rem",
+                  padding: "0.5rem 0.75rem",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                  resize: "vertical",
                 }}
               />
             </div>
@@ -447,7 +655,11 @@ const ClientList: React.FC = () => {
               <button
                 onClick={() => {
                   setShowModal(false);
-                  setClientName("");
+                  setname("");
+                  setAddress("");
+                  setContact("");
+                  setEmail("");
+                  setNotes("");
                   setIsActive(true);
                 }}
                 style={{
