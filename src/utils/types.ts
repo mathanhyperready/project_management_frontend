@@ -10,16 +10,17 @@ export interface User {
   role_id : number;
 }
 
-<<<<<<< HEAD
-export interface TimeEntry {
-  [key: string]: string; // date as key, time as value (HH:MM:SS)
-=======
 export interface Role {
   id: number;
   name: string;
   is_enabled: boolean;
   created_at: string;
->>>>>>> 09b51c45b026581529932ca280117090730f085f
+
+}
+
+export interface TimeEntry {
+  [key: string]: string; // date as key, time as value (HH:MM:SS)
+
 }
 
 
