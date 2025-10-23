@@ -8,6 +8,7 @@ export interface User {
   createdAt: string;
   is_active: boolean;
   role_id : number;
+  created_at: string;
 }
 
 export interface Role {
@@ -18,6 +19,30 @@ export interface Role {
 
 }
 
+export interface BackendProject {
+  id: number;
+  project_name: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+  status: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD';
+  client_id: number | null;
+  user_id: number | null;
+  user: any;
+  client: { name: string } | null;
+  timesheets: Array<{
+    id: number;
+    description: string;
+    start_date: string;
+    end_date: string;
+    duration: number;
+    status: string;
+    projectId: number;
+    userId: number;
+  }>;
+}
+
 export interface Client {
   id : number;
   name : string;
@@ -26,7 +51,8 @@ export interface Client {
   contact : string;
   email : string;
   notes : string;
-  
+  is_enabled : boolean;
+
 }
 
 export interface TimeEntry {
@@ -37,17 +63,17 @@ export interface TimeEntry {
 
 export interface Project {
   id: number;
-  color: string;
-  name: string;
+  project_name: string;
   description: string;
-  startDate: string;
-  endDate: string;
-  status: 'active' | 'completed' | 'on_hold';
-  members: string[]; // user IDs
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  timeEntries: TimeEntry;
+  start_date: string;
+  end_date: string;
+  status: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD';
+  client_id: number | null;
+  // Add these if you want to persist UI state
+  color?: string;
+  is_public?: boolean;
+  is_billable?: boolean;
+  is_favorite?: boolean;
 }
 
 export interface Task {

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Star, MoreVertical, ChevronDown, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { projectsAPI } from "../../../api/projects.api";
 
+// Frontend Project Interface (for UI display)
 interface Project {
   id: number;
   name: string;
@@ -17,101 +19,43 @@ interface Project {
   startDate: string;
 }
 
+// Backend Project Interface (API response)
+interface BackendProject {
+  id: number;
+  project_name: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+  status: string;
+  client_id: number | null;
+  user_id: number | null;
+  user: any;
+  client: any;
+  timesheets: Array<{
+    id: number;
+    description: string;
+    start_date: string;
+    end_date: string;
+    duration: number;
+    status: string;
+    projectId: number;
+    userId: number;
+  }>;
+}
+
 const ProjectsPage: React.FC = () => {
   const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   
-  // Initialize as empty array to avoid hardcoded defaults
   const [projects, setProjects] = useState<Project[]>([]);
-
-  // Load from localStorage or set defaults if empty
-  useEffect(() => {
-    const savedProjects = localStorage.getItem("projects");
-    if (savedProjects) {
-      try {
-        setProjects(JSON.parse(savedProjects));
-      } catch (error) {
-        console.error("Error parsing saved projects:", error);
-        // Fallback to defaults if parsing fails
-        setProjects([
-          {
-            id: 1,
-            name: "DEMO",
-            client: "",
-            tracked: "3.01h",
-            amount: "0.00 USD",
-            progress: "-",
-            access: "Public",
-            billable: true,
-            active: true,
-            favorite: false,
-            color: "#ec4899",
-            startDate: "2025-10-01",
-          },
-          {
-            id: 2,
-            name: "TEST",
-            client: "",
-            tracked: "0.00h",
-            amount: "0.00 USD",
-            progress: "-",
-            access: "Public",
-            billable: false,
-            active: true,
-            favorite: false,
-            color: "#10b981",
-            startDate: "2025-10-05",
-          },
-        ]);
-      }
-    } else {
-      // Set defaults if no saved data
-      setProjects([
-        {
-          id: 1,
-          name: "DEMO",
-          client: "",
-          tracked: "3.01h",
-          amount: "0.00 USD",
-          progress: "-",
-          access: "Public",
-          billable: true,
-          active: true,
-          favorite: false,
-          color: "#ec4899",
-          startDate: "2025-10-01",
-        },
-        {
-          id: 2,
-          name: "TEST",
-          client: "",
-          tracked: "0.00h",
-          amount: "0.00 USD",
-          progress: "-",
-          access: "Public",
-          billable: false,
-          active: true,
-          favorite: false,
-          color: "#10b981",
-          startDate: "2025-10-05",
-        },
-      ]);
-    }
-  }, []);
-
-  // Save to localStorage whenever projects change
-  useEffect(() => {
-    if (projects.length > 0) {  // Optional: Avoid saving empty array initially
-      localStorage.setItem("projects", JSON.stringify(projects));
-    }
-  }, [projects]);
-
-
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [billableFilter, setBillableFilter] = useState<string>("all");
-  
 
   const [showActiveDropdown, setShowActiveDropdown] = useState(false);
   const [showClientDropdown, setShowClientDropdown] = useState(false);
@@ -139,12 +83,72 @@ const ProjectsPage: React.FC = () => {
     "#06b6d4", "#22d3ee", "#14b8a6", "#f97316", "#9e9e9e"
   ];
 
+  // Transform backend data to frontend format
+  const transformBackendProject = (backendProject: BackendProject): Project => {
+    const totalTracked = backendProject.timesheets?.reduce((sum, ts) => sum + ts.duration, 0) || 0;
+    
+    return {
+      id: backendProject.id,
+      name: backendProject.project_name,
+      client: backendProject.client?.name || "",
+      tracked: `${totalTracked.toFixed(2)}h`,
+      amount: "0.00 USD", // Calculate based on your business logic
+      progress: "-",
+      access: "Public", // You can add this field to backend
+      billable: true, // You can add this field to backend
+      active: backendProject.status === "IN_PROGRESS" || backendProject.status === "PLANNED",
+      favorite: false, // Store this in backend or use localStorage
+      color: "#a855f7", // Store this in backend or use localStorage
+      startDate: backendProject.start_date.split('T')[0],
+    };
+  };
+
+  // Fetch projects from API
+  const fetchProjects = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await projectsAPI.getProjects();
+      
+      // Handle different response structures
+      let backendProjects: BackendProject[] = [];
+      
+      if (Array.isArray(response)) {
+        // If response is directly an array
+        backendProjects = response as unknown as BackendProject[];
+      } else if (response.data && Array.isArray(response.data)) {
+        // If response has a data property that's an array
+        backendProjects = response.data as unknown as BackendProject[];
+      } else if (response.items && Array.isArray(response.items)) {
+        // If response has an items property (common in paginated responses)
+        backendProjects = response.items as unknown as BackendProject[];
+      } else {
+        console.error("Unexpected response structure:", response);
+        throw new Error("Invalid response format from API");
+      }
+      
+      const transformedProjects = backendProjects.map(transformBackendProject);
+      setProjects(transformedProjects);
+    } catch (err: any) {
+      console.error("Error fetching projects:", err);
+      setError(err.response?.data?.message || err.message || "Failed to load projects. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
   const filteredProjects = projects.filter((project) => {
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesActive = activeFilter === "all" || 
       (activeFilter === "active" && project.active) ||
       (activeFilter === "inactive" && !project.active);
-    const matchesClient = clientFilter === "all" || project.client === clientFilter;
+    const matchesClient = clientFilter === "all" || 
+      (clientFilter === "none" && !project.client) ||
+      project.client === clientFilter;
     const matchesBillable = billableFilter === "all" ||
       (billableFilter === "billable" && project.billable) ||
       (billableFilter === "non-billable" && !project.billable);
@@ -156,6 +160,7 @@ const ProjectsPage: React.FC = () => {
     setProjects(projects.map(p => 
       p.id === id ? { ...p, favorite: !p.favorite } : p
     ));
+    // TODO: Update favorite status in backend
   };
 
   const openCreateModal = () => {
@@ -180,29 +185,60 @@ const ProjectsPage: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleCreateProject = () => {
-    if (projectName.trim()) {
-      const newProject: Project = {
-        id: Date.now(),
-        name: projectName,
-        client: selectedClient,
-        tracked: "0.00h",
-        amount: "0.00 USD",
-        progress: "-",
-        access: isPublic ? "Public" : "Private",
-        billable: true,
-        active: true,
-        favorite: false,
-        color: selectedColor,
-        startDate: startDate || new Date().toISOString().split('T')[0],
+  const handleCreateProject = async () => {
+    if (!projectName.trim()) {
+      alert("Please enter a project name");
+      return;
+    }
+
+    try {
+      const newProjectData = {
+        project_name: projectName,
+        description: "",
+        start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
+        end_date: "",
+        status: "PLANNED",
+        client_id: null, // Map from selectedClient if you have client management
+        user_id: null, // Add current user ID from auth context
       };
-      setProjects([...projects, newProject]);
+
+      const createdProject = await projectsAPI.createProject(newProjectData);
+      // Cast to BackendProject since API returns backend format
+      const backendProject = createdProject as unknown as BackendProject;
+      const transformedProject = transformBackendProject(backendProject);
+      
+      // Add UI-only properties
+      transformedProject.color = selectedColor;
+      transformedProject.access = isPublic ? "Public" : "Private";
+      
+      setProjects([...projects, transformedProject]);
       setShowModal(false);
+      
+      // Show success message
+      alert("Project created successfully!");
+    } catch (err: any) {
+      console.error("Error creating project:", err);
+      alert(err.response?.data?.message || "Failed to create project. Please try again.");
     }
   };
 
-  const handleUpdateProject = () => {
-    if (editingProject && projectName.trim()) {
+  const handleUpdateProject = async () => {
+    if (!editingProject || !projectName.trim()) {
+      alert("Please enter a project name");
+      return;
+    }
+
+    try {
+      const updateData = {
+        project_name: projectName,
+        start_date: startDate ? new Date(startDate).toISOString() : undefined,
+        description: "",
+        client_id: null, // Map from selectedClient
+      };
+
+      await projectsAPI.updateProject(String(editingProject.id), updateData);
+      
+      // Update local state
       setProjects(projects.map(p =>
         p.id === editingProject.id
           ? {
@@ -215,14 +251,28 @@ const ProjectsPage: React.FC = () => {
             }
           : p
       ));
+      
       setShowModal(false);
+      alert("Project updated successfully!");
+    } catch (err: any) {
+      console.error("Error updating project:", err);
+      alert(err.response?.data?.message || "Failed to update project. Please try again.");
     }
   };
 
-  const handleDeleteProject = (id: number) => {
-    if (window.confirm("Are you sure you want to delete this project?")) {
+  const handleDeleteProject = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this project?")) {
+      return;
+    }
+
+    try {
+      await projectsAPI.deleteProject(String(id));
       setProjects(projects.filter(p => p.id !== id));
       setActiveProjectMenu(null);
+      alert("Project deleted successfully!");
+    } catch (err: any) {
+      console.error("Error deleting project:", err);
+      alert(err.response?.data?.message || "Failed to delete project. Please try again.");
     }
   };
 
@@ -234,11 +284,13 @@ const ProjectsPage: React.FC = () => {
     };
     setProjects([...projects, newProject]);
     setActiveProjectMenu(null);
+    // TODO: Create duplicate via API
   };
 
   const handleExport = (format: string) => {
     alert(`Exporting projects as ${format}...`);
     setShowExportDropdown(false);
+    // TODO: Implement export functionality
   };
 
   // Close dropdown when clicking outside
@@ -259,10 +311,6 @@ const ProjectsPage: React.FC = () => {
     };
   }, []);
 
-  
-
-  const navigate = useNavigate();
-
   return (
     <div style={{ 
       minHeight: "100vh", 
@@ -271,657 +319,659 @@ const ProjectsPage: React.FC = () => {
     }}
     ref={menuRef}
     >
-      
-      {/* Header */}
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: "2rem",
-      }}>
-        <h1 style={{
-          fontSize: "1.5rem",
-          fontWeight: "400",
-          color: "#374151",
-          margin: 0,
-        }}>
-          Projects
-        </h1>
-        <button
-          onClick={openCreateModal}
-          style={{
-            padding: "0.625rem 1.5rem",
-            backgroundColor: "#22d3ee",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            fontSize: "0.875rem",
-            fontWeight: "600",
-            cursor: "pointer",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-          }}
-        >
-          CREATE NEW PROJECT
-        </button>
-      </div>
-
-      {/* Filter Section */}
-      <div style={{
-        backgroundColor: "white",
-        borderRadius: "8px",
-        padding: "1rem",
-        marginBottom: "1rem",
-        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
-      }}>
+      {/* Loading State */}
+      {loading && (
         <div style={{
           display: "flex",
-          gap: "1rem",
+          justifyContent: "center",
           alignItems: "center",
-          flexWrap: "wrap",
+          minHeight: "400px",
+          fontSize: "1.125rem",
+          color: "#6b7280",
         }}>
-          <span style={{
-            fontSize: "0.875rem",
-            color: "#9ca3af",
-            fontWeight: "500",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-          }}>
-            FILTER
-          </span>
+          Loading projects...
+        </div>
+      )}
 
-          {/* Active Dropdown */}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => {
-                setShowActiveDropdown(!showActiveDropdown);
-                setShowClientDropdown(false);
-                setShowBillingDropdown(false);
-              }}
-              style={{
-                padding: "0.5rem 1rem",
-                backgroundColor: "white",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                fontSize: "0.875rem",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                color: "#374151",
-              }}
-            >
-              Active <ChevronDown size={16} />
-            </button>
-            {showActiveDropdown && (
-              <div style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                marginTop: "0.25rem",
-                backgroundColor: "white",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                zIndex: 10,
-                minWidth: "150px",
-              }}>
-                <div
-                  onClick={() => {
-                    setActiveFilter("all");
-                    setShowActiveDropdown(false);
-                  }}
-                  style={{
-                    padding: "0.625rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                    backgroundColor: activeFilter === "all" ? "#f3f4f6" : "white",
-                  }}
-                >
-                  All
-                </div>
-                <div
-                  onClick={() => {
-                    setActiveFilter("active");
-                    setShowActiveDropdown(false);
-                  }}
-                  style={{
-                    padding: "0.625rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                    backgroundColor: activeFilter === "active" ? "#f3f4f6" : "white",
-                  }}
-                >
-                  Active
-                </div>
-                <div
-                  onClick={() => {
-                    setActiveFilter("inactive");
-                    setShowActiveDropdown(false);
-                  }}
-                  style={{
-                    padding: "0.625rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                    backgroundColor: activeFilter === "inactive" ? "#f3f4f6" : "white",
-                  }}
-                >
-                  Inactive
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Client Dropdown */}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => {
-                setShowClientDropdown(!showClientDropdown);
-                setShowActiveDropdown(false);
-                setShowBillingDropdown(false);
-              }}
-              style={{
-                padding: "0.5rem 1rem",
-                backgroundColor: "white",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                fontSize: "0.875rem",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                color: "#374151",
-              }}
-            >
-              Client <ChevronDown size={16} />
-            </button>
-            {showClientDropdown && (
-              <div style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                marginTop: "0.25rem",
-                backgroundColor: "white",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                zIndex: 10,
-                minWidth: "150px",
-              }}>
-                <div
-                  onClick={() => {
-                    setClientFilter("all");
-                    setShowClientDropdown(false);
-                  }}
-                  style={{
-                    padding: "0.625rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                    backgroundColor: clientFilter === "all" ? "#f3f4f6" : "white",
-                  }}
-                >
-                  All Clients
-                </div>
-                <div
-                  onClick={() => {
-                    setClientFilter("none");
-                    setShowClientDropdown(false);
-                  }}
-                  style={{
-                    padding: "0.625rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                    backgroundColor: clientFilter === "none" ? "#f3f4f6" : "white",
-                  }}
-                >
-                  No Client
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Billing Dropdown */}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => {
-                setShowBillingDropdown(!showBillingDropdown);
-                setShowActiveDropdown(false);
-                setShowClientDropdown(false);
-              }}
-              style={{
-                padding: "0.5rem 1rem",
-                backgroundColor: "white",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                fontSize: "0.875rem",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                color: "#374151",
-              }}
-            >
-              Billing <ChevronDown size={16} />
-            </button>
-            {showBillingDropdown && (
-              <div style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                marginTop: "0.25rem",
-                backgroundColor: "white",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                zIndex: 10,
-                minWidth: "150px",
-              }}>
-                <div
-                  onClick={() => {
-                    setBillableFilter("all");
-                    setShowBillingDropdown(false);
-                  }}
-                  style={{
-                    padding: "0.625rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                    backgroundColor: billableFilter === "all" ? "#f3f4f6" : "white",
-                  }}
-                >
-                  All
-                </div>
-                <div
-                  onClick={() => {
-                    setBillableFilter("billable");
-                    setShowBillingDropdown(false);
-                  }}
-                  style={{
-                    padding: "0.625rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                    backgroundColor: billableFilter === "billable" ? "#f3f4f6" : "white",
-                  }}
-                >
-                  Billable
-                </div>
-                <div
-                  onClick={() => {
-                    setBillableFilter("non-billable");
-                    setShowBillingDropdown(false);
-                  }}
-                  style={{
-                    padding: "0.625rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                    backgroundColor: billableFilter === "non-billable" ? "#f3f4f6" : "white",
-                  }}
-                >
-                  Non billable
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Search Input */}
-          <div style={{
-            flex: 1,
-            position: "relative",
-            minWidth: "250px",
-          }}>
-            <Search
-              size={18}
-              style={{
-                position: "absolute",
-                left: "0.75rem",
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "#9ca3af",
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Find by name"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "0.5rem 0.75rem 0.5rem 2.5rem",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                fontSize: "0.875rem",
-                outline: "none",
-              }}
-            />
-          </div>
-
-          {/* Apply Filter Button */}
-          <button style={{
-            padding: "0.5rem 1.5rem",
-            backgroundColor: "transparent",
-            color: "#22d3ee",
-            border: "1px solid #22d3ee",
-            borderRadius: "4px",
-            fontSize: "0.875rem",
-            fontWeight: "600",
-            cursor: "pointer",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-          }}>
-            APPLY FILTER
+      {/* Error State */}
+      {error && !loading && (
+        <div style={{
+          backgroundColor: "#fee2e2",
+          border: "1px solid #ef4444",
+          borderRadius: "8px",
+          padding: "1rem",
+          marginBottom: "1rem",
+          color: "#991b1b",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}>
+          <span>{error}</span>
+          <button
+            onClick={fetchProjects}
+            style={{
+              padding: "0.5rem 1rem",
+              backgroundColor: "#991b1b",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontSize: "0.875rem",
+            }}
+          >
+            Retry
           </button>
         </div>
-      </div>
+      )}
 
-      {/* Projects Table */}
-      <div style={{
-        backgroundColor: "white",
-        borderRadius: "8px",
-        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
-        overflow: "visible",
-      }}>
-        {/* Tab Header */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0.75rem 1.5rem",
-          backgroundColor: "#f9fafb",
-          borderBottom: "1px solid #e5e7eb",
-        }}>
-          <span style={{
-            fontSize: "0.875rem",
-            color: "#6b7280",
-            fontWeight: "500",
+      {/* Main Content - Only show when not loading */}
+      {!loading && (
+        <>
+          {/* Header */}
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "2rem",
           }}>
-            Projects
-          </span>
-          <div style={{ position: "relative" }}>
+            <h1 style={{
+              fontSize: "1.5rem",
+              fontWeight: "400",
+              color: "#374151",
+              margin: 0,
+            }}>
+              Projects
+            </h1>
             <button
-              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              onClick={openCreateModal}
               style={{
-                padding: "0.25rem 0.75rem",
-                backgroundColor: "transparent",
-                color: "#6b7280",
-                border: "1px solid #d1d5db",
+                padding: "0.625rem 1.5rem",
+                backgroundColor: "#22d3ee",
+                color: "white",
+                border: "none",
                 borderRadius: "4px",
-                fontSize: "0.75rem",
+                fontSize: "0.875rem",
+                fontWeight: "600",
                 cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.25rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
               }}
             >
-              Export <ChevronDown size={14} />
+              CREATE NEW PROJECT
             </button>
-            {showExportDropdown && (
-              <div style={{
-                position: "absolute",
-                top: "100%",
-                right: 0,
-                marginTop: "0.25rem",
-                backgroundColor: "white",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                zIndex: 10,
-                minWidth: "120px",
-              }}>
-                <div
-                  onClick={() => handleExport("PDF")}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                  }}
-                >
-                  Export as PDF
-                </div>
-                <div
-                  onClick={() => handleExport("CSV")}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                  }}
-                >
-                  Export as CSV
-                </div>
-                <div
-                  onClick={() => handleExport("Excel")}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    color: "#374151",
-                  }}
-                >
-                  Export as Excel
-                </div>
-              </div>
-            )}
           </div>
-        </div>
 
-        {/* Table */}
-        <div style={{ overflow: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-              <th style={{ padding: "0.75rem 1.5rem", textAlign: "left", width: "40px" }}>
-                <input type="checkbox" style={{ cursor: "pointer" }} />
-              </th>
-              <th  style={{
-                padding: "0.75rem 1.5rem",
-                textAlign: "left",
-                fontSize: "0.75rem",
-                fontWeight: "600",
-                color: "#6b7280",
+          {/* Filter Section */}
+          <div style={{
+            backgroundColor: "white",
+            borderRadius: "8px",
+            padding: "1rem",
+            marginBottom: "1rem",
+            boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
+          }}>
+            <div style={{
+              display: "flex",
+              gap: "1rem",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}>
+              <span style={{
+                fontSize: "0.875rem",
+                color: "#9ca3af",
+                fontWeight: "500",
                 textTransform: "uppercase",
                 letterSpacing: "0.5px",
               }}>
-                
-                NAME ▲
+                FILTER
+              </span>
 
-              </th>
-              <th style={{
-                padding: "0.75rem 1.5rem",
-                textAlign: "left",
-                fontSize: "0.75rem",
-                fontWeight: "600",
-                color: "#6b7280",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}>
-                CLIENT
-              </th>
-              <th style={{
-                padding: "0.75rem 1.5rem",
-                textAlign: "left",
-                fontSize: "0.75rem",
-                fontWeight: "600",
-                color: "#6b7280",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}>
-                TRACKED
-              </th>
-              <th style={{
-                padding: "0.75rem 1.5rem",
-                textAlign: "left",
-                fontSize: "0.75rem",
-                fontWeight: "600",
-                color: "#6b7280",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}>
-                AMOUNT
-              </th>
-              <th style={{
-                padding: "0.75rem 1.5rem",
-                textAlign: "left",
-                fontSize: "0.75rem",
-                fontWeight: "600",
-                color: "#6b7280",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}>
-                PROGRESS
-              </th>
-              <th style={{
-                padding: "0.75rem 1.5rem",
-                textAlign: "left",
-                fontSize: "0.75rem",
-                fontWeight: "600",
-                color: "#6b7280",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}>
-                ACCESS
-              </th>
-              <th style={{ padding: "0.75rem 1.5rem", width: "80px" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredProjects.map((project) => (
-              <tr key={project.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                <td style={{ padding: "1rem 1.5rem" }}>
-                  <input type="checkbox" style={{ cursor: "pointer" }} />
-                </td>
-                <td style={{ padding: "1rem 1.5rem" }}>
-                  <div  onClick={() => navigate(`/projects/${project.id}`)} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      backgroundColor: project.color,
-                    }}></span>
-                    <span style={{ fontSize: "0.875rem", color: "#374151" }}>
-                      {project.name}
-                    </span>
-                  </div>
-                </td>
-                <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#6b7280" }}>
-                  {project.client || "–"}
-                </td>
-                <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#374151" }}>
-                  {project.tracked}
-                </td>
-                <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#374151" }}>
-                  {project.amount}
-                </td>
-                <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#6b7280" }}>
-                  {project.progress}
-                </td>
-                <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#374151" }}>
-                  {project.access}
-                </td>
-                <td style={{ padding: "1rem 1.5rem", position: "relative" }}>
-                  <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", position: "relative" }}>
-                    <button
-                      onClick={() => toggleFavorite(project.id)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: "0.25rem",
-                      }}
-                    >
-                      <Star
-                        size={18}
-                        style={{
-                          color: project.favorite ? "#fbbf24" : "#d1d5db",
-                          fill: project.favorite ? "#fbbf24" : "none",
+              {/* Active Dropdown */}
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => {
+                    setShowActiveDropdown(!showActiveDropdown);
+                    setShowClientDropdown(false);
+                    setShowBillingDropdown(false);
+                  }}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "white",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    fontSize: "0.875rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    color: "#374151",
+                  }}
+                >
+                  Active <ChevronDown size={16} />
+                </button>
+                {showActiveDropdown && (
+                  <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    marginTop: "0.25rem",
+                    backgroundColor: "white",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                    zIndex: 10,
+                    minWidth: "150px",
+                  }}>
+                    {["all", "active", "inactive"].map((filter) => (
+                      <div
+                        key={filter}
+                        onClick={() => {
+                          setActiveFilter(filter);
+                          setShowActiveDropdown(false);
                         }}
-                      />
-                    </button>
-                    <div style={{ position: "relative" }}>
-                      <button
-                        onClick={() => setActiveProjectMenu(activeProjectMenu === project.id ? null : project.id)}
                         style={{
-                          background: "none",
-                          border: "none",
+                          padding: "0.625rem 1rem",
                           cursor: "pointer",
-                          padding: "0.25rem",
+                          fontSize: "0.875rem",
+                          color: "#374151",
+                          backgroundColor: activeFilter === filter ? "#f3f4f6" : "white",
                         }}
                       >
-                        <MoreVertical size={18} style={{ color: "#9ca3af" }} />
-                      </button>
-                      {activeProjectMenu === project.id && (
-                        <div style={{
-                          position: "fixed",
-                          transform: "translate(-90%, 0)",
-                          marginTop: "0.25rem",
-                          backgroundColor: "white",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "8px",
-                          boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
-                          zIndex: 9999,
-                          minWidth: "180px",
-                          padding: "0.5rem 0",
-                        }}>
-                          <div
-                            onClick={() => openEditModal(project)}
-                            style={{
-                              padding: "0.75rem 1.25rem",
-                              cursor: "pointer",
-                              fontSize: "0.875rem",
-                              color: "#374151",
-                              transition: "background-color 0.15s",
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f3f4f6"}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
-                          >
-                            Edit
-                          </div>
-                          <div
-                            onClick={() => handleDuplicateProject(project)}
-                            style={{
-                              padding: "0.75rem 1.25rem",
-                              cursor: "pointer",
-                              fontSize: "0.875rem",
-                              color: "#374151",
-                              transition: "background-color 0.15s",
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f3f4f6"}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
-                          >
-                            Duplicate
-                          </div>
-                          <div
-                            onClick={() => handleDeleteProject(project.id)}
-                            style={{
-                              padding: "0.75rem 1.25rem",
-                              cursor: "pointer",
-                              fontSize: "0.875rem",
-                              color: "#ef4444",
-                              transition: "background-color 0.15s",
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#fef2f2"}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
-                          >
-                            Delete
-                          </div>
-                        </div>
-                      )}
+                        {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Client Dropdown */}
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => {
+                    setShowClientDropdown(!showClientDropdown);
+                    setShowActiveDropdown(false);
+                    setShowBillingDropdown(false);
+                  }}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "white",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    fontSize: "0.875rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    color: "#374151",
+                  }}
+                >
+                  Client <ChevronDown size={16} />
+                </button>
+                {showClientDropdown && (
+                  <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    marginTop: "0.25rem",
+                    backgroundColor: "white",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                    zIndex: 10,
+                    minWidth: "150px",
+                  }}>
+                    <div
+                      onClick={() => {
+                        setClientFilter("all");
+                        setShowClientDropdown(false);
+                      }}
+                      style={{
+                        padding: "0.625rem 1rem",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                        color: "#374151",
+                        backgroundColor: clientFilter === "all" ? "#f3f4f6" : "white",
+                      }}
+                    >
+                      All Clients
+                    </div>
+                    <div
+                      onClick={() => {
+                        setClientFilter("none");
+                        setShowClientDropdown(false);
+                      }}
+                      style={{
+                        padding: "0.625rem 1rem",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                        color: "#374151",
+                        backgroundColor: clientFilter === "none" ? "#f3f4f6" : "white",
+                      }}
+                    >
+                      No Client
                     </div>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      </div>
+                )}
+              </div>
+
+              {/* Billing Dropdown */}
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => {
+                    setShowBillingDropdown(!showBillingDropdown);
+                    setShowActiveDropdown(false);
+                    setShowClientDropdown(false);
+                  }}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "white",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    fontSize: "0.875rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    color: "#374151",
+                  }}
+                >
+                  Billing <ChevronDown size={16} />
+                </button>
+                {showBillingDropdown && (
+                  <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    marginTop: "0.25rem",
+                    backgroundColor: "white",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                    zIndex: 10,
+                    minWidth: "150px",
+                  }}>
+                    {[
+                      { value: "all", label: "All" },
+                      { value: "billable", label: "Billable" },
+                      { value: "non-billable", label: "Non billable" }
+                    ].map((option) => (
+                      <div
+                        key={option.value}
+                        onClick={() => {
+                          setBillableFilter(option.value);
+                          setShowBillingDropdown(false);
+                        }}
+                        style={{
+                          padding: "0.625rem 1rem",
+                          cursor: "pointer",
+                          fontSize: "0.875rem",
+                          color: "#374151",
+                          backgroundColor: billableFilter === option.value ? "#f3f4f6" : "white",
+                        }}
+                      >
+                        {option.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Search Input */}
+              <div style={{
+                flex: 1,
+                position: "relative",
+                minWidth: "250px",
+              }}>
+                <Search
+                  size={18}
+                  style={{
+                    position: "absolute",
+                    left: "0.75rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "#9ca3af",
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Find by name"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.75rem 0.5rem 2.5rem",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    fontSize: "0.875rem",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              {/* Apply Filter Button */}
+              <button 
+                onClick={fetchProjects}
+                style={{
+                  padding: "0.5rem 1.5rem",
+                  backgroundColor: "transparent",
+                  color: "#22d3ee",
+                  border: "1px solid #22d3ee",
+                  borderRadius: "4px",
+                  fontSize: "0.875rem",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                REFRESH
+              </button>
+            </div>
+          </div>
+
+          {/* Projects Table */}
+          <div style={{
+            backgroundColor: "white",
+            borderRadius: "8px",
+            boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
+            overflow: "visible",
+          }}>
+            {/* Tab Header */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "0.75rem 1.5rem",
+              backgroundColor: "#f9fafb",
+              borderBottom: "1px solid #e5e7eb",
+            }}>
+              <span style={{
+                fontSize: "0.875rem",
+                color: "#6b7280",
+                fontWeight: "500",
+              }}>
+                Projects ({filteredProjects.length})
+              </span>
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setShowExportDropdown(!showExportDropdown)}
+                  style={{
+                    padding: "0.25rem 0.75rem",
+                    backgroundColor: "transparent",
+                    color: "#6b7280",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    fontSize: "0.75rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                  }}
+                >
+                  Export <ChevronDown size={14} />
+                </button>
+                {showExportDropdown && (
+                  <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    right: 0,
+                    marginTop: "0.25rem",
+                    backgroundColor: "white",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                    zIndex: 10,
+                    minWidth: "120px",
+                  }}>
+                    {["PDF", "CSV", "Excel"].map((format) => (
+                      <div
+                        key={format}
+                        onClick={() => handleExport(format)}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          cursor: "pointer",
+                          fontSize: "0.875rem",
+                          color: "#374151",
+                        }}
+                      >
+                        Export as {format}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Table */}
+            <div style={{ overflow: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                    <th style={{ padding: "0.75rem 1.5rem", textAlign: "left", width: "40px" }}>
+                      <input type="checkbox" style={{ cursor: "pointer" }} />
+                    </th>
+                    <th style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}>
+                      NAME ▲
+                    </th>
+                    <th style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}>
+                      CLIENT
+                    </th>
+                    <th style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}>
+                      TRACKED
+                    </th>
+                    <th style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}>
+                      AMOUNT
+                    </th>
+                    <th style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}>
+                      PROGRESS
+                    </th>
+                    <th style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}>
+                      ACCESS
+                    </th>
+                    <th style={{ padding: "0.75rem 1.5rem", width: "80px" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProjects.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{
+                        padding: "2rem",
+                        textAlign: "center",
+                        color: "#6b7280",
+                        fontSize: "0.875rem",
+                      }}>
+                        No projects found. Create your first project to get started!
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredProjects.map((project) => (
+                      <tr key={project.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                        <td style={{ padding: "1rem 1.5rem" }}>
+                          <input type="checkbox" style={{ cursor: "pointer" }} />
+                        </td>
+                        <td style={{ padding: "1rem 1.5rem" }}>
+                          <div 
+                            onClick={() => navigate(`/projects/${project.id}`)} 
+                            style={{ 
+                              display: "flex", 
+                              alignItems: "center", 
+                              gap: "0.5rem",
+                              cursor: "pointer"
+                            }}
+                          >
+                            <span style={{
+                              width: "8px",
+                              height: "8px",
+                              borderRadius: "50%",
+                              backgroundColor: project.color,
+                            }}></span>
+                            <span style={{ fontSize: "0.875rem", color: "#374151" }}>
+                              {project.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#6b7280" }}>
+                          {project.client || "–"}
+                        </td>
+                        <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#374151" }}>
+                          {project.tracked}
+                        </td>
+                        <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#374151" }}>
+                          {project.amount}
+                        </td>
+                        <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#6b7280" }}>
+                          {project.progress}
+                        </td>
+                        <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#374151" }}>
+                          {project.access}
+                        </td>
+                        <td style={{ padding: "1rem 1.5rem", position: "relative" }}>
+                          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", position: "relative" }}>
+                            <button
+                              onClick={() => toggleFavorite(project.id)}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: "0.25rem",
+                              }}
+                            >
+                              <Star
+                                size={18}
+                                style={{
+                                  color: project.favorite ? "#fbbf24" : "#d1d5db",
+                                  fill: project.favorite ? "#fbbf24" : "none",
+                                }}
+                              />
+                            </button>
+                            <div style={{ position: "relative" }}>
+                              <button
+                                onClick={() => setActiveProjectMenu(activeProjectMenu === project.id ? null : project.id)}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  padding: "0.25rem",
+                                }}
+                              >
+                                <MoreVertical size={18} style={{ color: "#9ca3af" }} />
+                              </button>
+                              {activeProjectMenu === project.id && (
+                                <div style={{
+                                  position: "fixed",
+                                  transform: "translate(-90%, 0)",
+                                  marginTop: "0.25rem",
+                                  backgroundColor: "white",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: "8px",
+                                  boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
+                                  zIndex: 9999,
+                                  minWidth: "180px",
+                                  padding: "0.5rem 0",
+                                }}>
+                                  <div
+                                    onClick={() => openEditModal(project)}
+                                    style={{
+                                      padding: "0.75rem 1.25rem",
+                                      cursor: "pointer",
+                                      fontSize: "0.875rem",
+                                      color: "#374151",
+                                      transition: "background-color 0.15s",
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f3f4f6"}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                  >
+                                    Edit
+                                  </div>
+                                  <div
+                                    onClick={() => handleDuplicateProject(project)}
+                                    style={{
+                                      padding: "0.75rem 1.25rem",
+                                      cursor: "pointer",
+                                      fontSize: "0.875rem",
+                                      color: "#374151",
+                                      transition: "background-color 0.15s",
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f3f4f6"}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                  >
+                                    Duplicate
+                                  </div>
+                                  <div
+                                    onClick={() => handleDeleteProject(project.id)}
+                                    style={{
+                                      padding: "0.75rem 1.25rem",
+                                      cursor: "pointer",
+                                      fontSize: "0.875rem",
+                                      color: "#ef4444",
+                                      transition: "background-color 0.15s",
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#fef2f2"}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                  >
+                                    Delete
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Create/Edit Project Modal */}
       {showModal && (
@@ -1002,7 +1052,7 @@ const ProjectsPage: React.FC = () => {
                     borderRadius: "4px",
                     fontSize: "0.875rem",
                     backgroundColor: "white",
-                    color: "#9ca3af",
+                    color: selectedClient ? "#374151" : "#9ca3af",
                   }}
                 >
                   <option value="">Select client</option>
@@ -1112,7 +1162,6 @@ const ProjectsPage: React.FC = () => {
                             const rect = e.currentTarget.getBoundingClientRect();
                             const x = e.clientX - rect.left;
                             const y = e.clientY - rect.top;
-                            // Simplified color calculation
                             const lightness = Math.round((1 - y / 180) * 50 + 25);
                             const saturation = Math.round((x / 180) * 100);
                             setCustomColor(`hsl(30, ${saturation}%, ${lightness}%)`);

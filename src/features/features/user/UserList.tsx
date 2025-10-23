@@ -15,12 +15,13 @@ interface ApiUser {
   created_at: string;
   projects: any[];
   timesheets: any[];
+
 }
 
 const transformApiUserToUser = (apiUser: ApiUser): User => {
   const userName = typeof apiUser.user_name === 'string' ? apiUser.user_name : apiUser.user_name?.name || 'Unknown';
   const roleName = typeof apiUser.role === 'string' ? apiUser.role : apiUser.role?.name || '';
-  
+
   return {
     id: apiUser.id,
     user_name: userName,
@@ -524,10 +525,10 @@ const UserList: React.FC = () => {
         console.log("API Response:", JSON.stringify(data, null, 2));
         const transformedUsers = Array.isArray(data)
           ? data.map(transformApiUserToUser).sort((a, b) => {
-              const dateA = new Date(a.created_at || 0).getTime();
-              const dateB = new Date(b.created_at || 0).getTime();
-              return dateB - dateA;
-            })
+            const dateA = new Date(a.created_at || 0).getTime();
+            const dateB = new Date(b.created_at || 0).getTime();
+            return dateB - dateA;
+          })
           : [];
         setUsers(transformedUsers);
       } catch (err) {
