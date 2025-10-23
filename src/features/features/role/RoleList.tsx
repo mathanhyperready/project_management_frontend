@@ -1,72 +1,113 @@
 import { MoreVertical, Plus, Trash2, X } from "lucide-react";
-import React, { useState, useRef, useEffect } from "react";
-
-interface Role {
-  id: number;
-  rolename: string;
-  status: "Active" | "Inactive";
-}
+import React, { useState, useEffect, useRef } from "react";
+import { rolesAPI } from '../../../api/roles.api';
+import type { Role, PaginationParams } from "../../../utils/types";
 
 const RoleList: React.FC = () => {
-  const [roles, setRoles] = useState<Role[]>([
-    { id: 1, rolename: "Administrator", status: "Active" },
-    { id: 2, rolename: "Manager", status: "Active" },
-    { id: 3, rolename: "Employee", status: "Inactive" },
-  ]);
-
+  const [roles, setRoles] = useState<Role[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [roleName, setRoleName] = useState("");
-  const [status, setStatus] = useState<"Active" | "Inactive">("Active");
   const [showMenu, setShowMenu] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Fetch roles on component mount
+  useEffect(() => {
+    const fetchRoles = async () => {
+      setLoading(true);
+      try {
+        const params: Partial<PaginationParams> = {};
+        const response = await rolesAPI.getRoles(params);
+        console.log("API Response:", response);
+        setRoles(Array.isArray(response) ? response : []);
+      } catch (err) {
+        setError("Failed to fetch roles. Please try again.");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRoles();
+  }, []);
+
   // Create new role
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!roleName.trim()) {
       alert("Role name is required!");
       return;
     }
 
-    const newRole: Role = {
-      id: roles.length ? roles[roles.length - 1].id + 1 : 1,
-      rolename: roleName,
-      status: "Active", // Default status is Active
-    };
-
-    setRoles([...roles, newRole]);
-    setRoleName("");
-    setStatus("Active");
-    setShowModal(false);
+    setLoading(true);
+    try {
+      const newRoleData: Partial<Role> = {
+        name: roleName,
+        is_enabled: true,
+      };
+      const newRole = await rolesAPI.createRole(newRoleData);
+      setRoles([...roles, newRole]);
+      setRoleName("");
+      setShowModal(false);
+    } catch (err) {
+      setError("Failed to create role. Please try again.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Update status to Active
-  const handleSetActive = (id: number) => {
-    setRoles((prev) =>
-      prev.map((role) =>
-        role.id === id ? { ...role, status: "Active" } : role
-      )
-    );
-    setShowMenu(null);
+  const handleSetActive = async (id: number) => {
+    setLoading(true);
+    try {
+      const updatedRole = await rolesAPI.updateRole(id, { is_enabled: true });
+      setRoles((prev) =>
+        prev.map((role) => (role.id === id ? updatedRole : role))
+      );
+      setShowMenu(null);
+    } catch (err) {
+      setError("Failed to update role status. Please try again.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Update status to Inactive
-  const handleSetInactive = (id: number) => {
-    setRoles((prev) =>
-      prev.map((role) =>
-        role.id === id ? { ...role, status: "Inactive" } : role
-      )
-    );
-    setShowMenu(null);
+  const handleSetInactive = async (id: number) => {
+    setLoading(true);
+    try {
+      const updatedRole = await rolesAPI.updateRole(id, { is_enabled: false });
+      setRoles((prev) =>
+        prev.map((role) => (role.id === id ? updatedRole : role))
+      );
+      setShowMenu(null);
+    } catch (err) {
+      setError("Failed to update role status. Please try again.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Delete role
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     const confirmDelete = window.confirm(
       "Are you sure you want to delete this role?"
     );
     if (confirmDelete) {
-      setRoles((prev) => prev.filter((r) => r.id !== id));
-      setShowMenu(null);
+      setLoading(true);
+      try {
+        await rolesAPI.deleteRole(id);
+        setRoles((prev) => prev.filter((r) => r.id !== id));
+        setShowMenu(null);
+      } catch (err) {
+        setError("Failed to delete role. Please try again.");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -107,15 +148,16 @@ const RoleList: React.FC = () => {
         </h1>
         <button
           onClick={() => setShowModal(true)}
+          disabled={loading}
           style={{
             padding: "0.625rem 1.5rem",
-            backgroundColor: "#22d3ee",
+            backgroundColor: loading ? "#a5f3fc" : "#22d3ee",
             color: "white",
             border: "none",
             borderRadius: "4px",
             fontSize: "0.875rem",
             fontWeight: "600",
-            cursor: "pointer",
+            cursor: loading ? "not-allowed" : "pointer",
             textTransform: "uppercase",
             letterSpacing: "0.5px",
           }}
@@ -124,221 +166,240 @@ const RoleList: React.FC = () => {
         </button>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div
+          style={{
+            padding: "1rem",
+            backgroundColor: "#fee2e2",
+            color: "#991b1b",
+            borderRadius: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && <div>Loading...</div>}
+
       {/* Table */}
-      <div
-        style={{
-          overflow: "auto",
-          border: "1px solid #e5e7eb",
-          borderRadius: "0.5rem",
-          backgroundColor: "white",
-        }}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr
-              style={{
-                backgroundColor: "#f9fafb",
-                borderBottom: "1px solid #e5e7eb",
-              }}
-            >
-              <th style={{ padding: "0.75rem 1.5rem", textAlign: "left", width: "40px" }}>
-                <input type="checkbox" style={{ cursor: "pointer" }} />
-              </th>
-              <th
+      {!loading && (
+        <div
+          style={{
+            overflow: "auto",
+            border: "1px solid #e5e7eb",
+            borderRadius: "0.5rem",
+            backgroundColor: "white",
+          }}
+        >
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr
                 style={{
-                  padding: "0.75rem 1.5rem",
-                  textAlign: "left",
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
-                  color: "#6b7280",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
+                  backgroundColor: "#f9fafb",
+                  borderBottom: "1px solid #e5e7eb",
                 }}
               >
-                <b>Role Name</b>
-              </th>
-              <th
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  textAlign: "left",
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
-                  color: "#6b7280",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                <b>Status</b>
-              </th>
-              <th
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  textAlign: "left",
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
-                  color: "#6b7280",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              ></th>
-            </tr>
-          </thead>
-          <tbody style={{ backgroundColor: "#F9FAFB", fontSize: "0.875rem" }}>
-            {roles.map((role) => (
-              <tr key={role.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                <td style={{ padding: "1rem 1.5rem" }}>
+                <th style={{ padding: "0.75rem 1.5rem", textAlign: "left", width: "40px" }}>
                   <input type="checkbox" style={{ cursor: "pointer" }} />
-                </td>
-                <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
-                  {role.rolename}
-                </td>
-                <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
-                  <span
-                    style={{
-                      padding: "0.25rem 0.75rem",
-                      borderRadius: "9999px",
-                      fontSize: "0.75rem",
-                      fontWeight: "500",
-                      backgroundColor:
-                        role.status === "Active" ? "#d1fae5" : "#fee2e2",
-                      color: role.status === "Active" ? "#065f46" : "#991b1b",
-                    }}
-                  >
-                    {role.status}
-                  </span>
-                </td>
-                <td
+                </th>
+                <th
                   style={{
-                    padding: "0.75rem 1rem",
-                    position: "relative",
-                    width: "10px",
+                    padding: "0.75rem 1.5rem",
+                    textAlign: "left",
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                    color: "#6b7280",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
                   }}
                 >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowMenu(showMenu === role.id ? null : role.id);
-                    }}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: "0.25rem",
-                    }}
-                  >
-                    <MoreVertical size={18} color="#6b7280" />
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {showMenu === role.id && (
-                    <div
+                  <b>Role Name</b>
+                </th>
+                <th
+                  style={{
+                    padding: "0.75rem 1.5rem",
+                    textAlign: "left",
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                    color: "#6b7280",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  <b>Status</b>
+                </th>
+                <th
+                  style={{
+                    padding: "0.75rem 1.5rem",
+                    textAlign: "left",
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                    color: "#6b7280",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                ></th>
+              </tr>
+            </thead>
+            <tbody style={{ backgroundColor: "#F9FAFB", fontSize: "0.875rem" }}>
+              {Array.isArray(roles) && roles.length > 0 ? (
+                roles.map((role) => (
+                  <tr key={role.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <td style={{ padding: "1rem 1.5rem" }}>
+                      <input type="checkbox" style={{ cursor: "pointer" }} />
+                    </td>
+                    <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
+                      {role.name}
+                    </td>
+                    <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
+                      <span
+                        style={{
+                          padding: "0.25rem 0.75rem",
+                          borderRadius: "9999px",
+                          fontSize: "0.75rem",
+                          fontWeight: "500",
+                          backgroundColor:
+                            role.is_enabled ? "#d1fae5" : "#fee2e2",
+                          color: role.is_enabled ? "#065f46" : "#991b1b",
+                        }}
+                      >
+                        {role.is_enabled ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td
                       style={{
-                        position: "fixed",
-                        transform: "translate(-90%, 0)",
-                        marginTop: "0.25rem",
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                        boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
-                        zIndex: 9999,
-                        minWidth: "180px",
-                        padding: "0.5rem 0",
+                        padding: "0.75rem 1rem",
+                        position: "relative",
+                        width: "10px",
                       }}
                     >
                       <button
-                        onClick={() => handleSetActive(role.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMenu(showMenu === role.id ? null : role.id);
+                        }}
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          padding: "0.75rem 1.25rem",
-                          width: "100%",
                           background: "none",
                           border: "none",
-                          textAlign: "left",
                           cursor: "pointer",
-                          fontSize: "0.875rem",
-                          color: "#374151",
-                          transition: "background-color 0.15s",
+                          padding: "0.25rem",
                         }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor = "#f3f4f6")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor = "transparent")
-                        }
                       >
-                        ✓ Active
+                        <MoreVertical size={18} color="#6b7280" />
                       </button>
-                      <button
-                        onClick={() => handleSetInactive(role.id)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          padding: "0.75rem 1.25rem",
-                          width: "100%",
-                          background: "none",
-                          border: "none",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          fontSize: "0.875rem",
-                          color: "#374151",
-                          transition: "background-color 0.15s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor = "#f3f4f6")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor = "transparent")
-                        }
-                      >
-                        ✗ Inactive
-                      </button>
-                      <button
-                        onClick={() => handleDelete(role.id)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          padding: "0.75rem 1.25rem",
-                          width: "100%",
-                          background: "none",
-                          border: "none",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          fontSize: "0.875rem",
-                          color: "#dc2626",
-                          transition: "background-color 0.15s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor = "#fef2f2")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor = "transparent")
-                        }
-                      >
-                        <Trash2 size={16} /> Delete
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-
-            {roles.length === 0 && (
-              <tr>
-                <td
-                  colSpan={4}
-                  style={{ textAlign: "center", padding: "1rem", color: "#9ca3af" }}
-                >
-                  No roles found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                      {/* Dropdown Menu */}
+                      {showMenu === role.id && (
+                        <div
+                          style={{
+                            position: "fixed",
+                            transform: "translate(-90%, 0)",
+                            marginTop: "0.25rem",
+                            backgroundColor: "white",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "8px",
+                            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
+                            zIndex: 9999,
+                            minWidth: "180px",
+                            padding: "0.5rem 0",
+                          }}
+                        >
+                          <button
+                            onClick={() => handleSetActive(role.id)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              padding: "0.75rem 1.25rem",
+                              width: "100%",
+                              background: "none",
+                              border: "none",
+                              textAlign: "left",
+                              cursor: "pointer",
+                              fontSize: "0.875rem",
+                              color: "#374151",
+                              transition: "background-color 0.15s",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.backgroundColor = "#f3f4f6")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.backgroundColor = "transparent")
+                            }
+                          >
+                            ✓ Active
+                          </button>
+                          <button
+                            onClick={() => handleSetInactive(role.id)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              padding: "0.75rem 1.25rem",
+                              width: "100%",
+                              background: "none",
+                              border: "none",
+                              textAlign: "left",
+                              cursor: "pointer",
+                              fontSize: "0.875rem",
+                              color: "#374151",
+                              transition: "background-color 0.15s",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.backgroundColor = "#f3f4f6")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.backgroundColor = "transparent")
+                            }
+                          >
+                            ✗ Inactive
+                          </button>
+                          <button
+                            onClick={() => handleDelete(role.id)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              padding: "0.75rem 1.25rem",
+                              width: "100%",
+                              background: "none",
+                              border: "none",
+                              textAlign: "left",
+                              cursor: "pointer",
+                              fontSize: "0.875rem",
+                              color: "#dc2626",
+                              transition: "background-color 0.15s",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.backgroundColor = "#fef2f2")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.backgroundColor = "transparent")
+                            }
+                          >
+                            <Trash2 size={16} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={4}
+                    style={{ textAlign: "center", padding: "1rem", color: "#9ca3af" }}
+                  >
+                    {loading ? "Loading..." : "No roles found"}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Create Modal */}
       {showModal && (
@@ -370,7 +431,6 @@ const RoleList: React.FC = () => {
               onClick={() => {
                 setShowModal(false);
                 setRoleName("");
-                setStatus("Active");
               }}
               style={{
                 position: "absolute",
@@ -420,6 +480,7 @@ const RoleList: React.FC = () => {
                   fontSize: "0.875rem",
                   outline: "none",
                 }}
+                disabled={loading}
               />
             </div>
 
@@ -459,7 +520,6 @@ const RoleList: React.FC = () => {
                 onClick={() => {
                   setShowModal(false);
                   setRoleName("");
-                  setStatus("Active");
                 }}
                 style={{
                   padding: "0.5rem 1rem",
@@ -470,6 +530,7 @@ const RoleList: React.FC = () => {
                   fontSize: "0.875rem",
                   color: "#374151",
                 }}
+                disabled={loading}
               >
                 Cancel
               </button>
@@ -478,13 +539,14 @@ const RoleList: React.FC = () => {
                 style={{
                   padding: "0.5rem 1rem",
                   borderRadius: "0.5rem",
-                  backgroundColor: "#22d3ee",
+                  backgroundColor: loading ? "#a5f3fc" : "#22d3ee",
                   color: "white",
                   border: "none",
-                  cursor: "pointer",
+                  cursor: loading ? "not-allowed" : "pointer",
                   fontSize: "0.875rem",
                   fontWeight: "600",
                 }}
+                disabled={loading}
               >
                 Create
               </button>

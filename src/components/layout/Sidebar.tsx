@@ -36,7 +36,7 @@ const adminNavigation = [
 ];
 
 export const Sidebar: React.FC = () => {
-  const { user } = useAuth();
+  const { u_name } = useAuth();
   const location = useLocation();
 
   const isActive = (href: string) => {
@@ -70,7 +70,7 @@ export const Sidebar: React.FC = () => {
               </Link>
             ))}
             
-            {user?.role === 'admin' && (
+            {u_name?.role === 'admin' && (
               <>
                 <div className="pt-4 mt-4 border-t border-gray-200">
                   <p className="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -100,13 +100,13 @@ export const Sidebar: React.FC = () => {
             <div className="flex-shrink-0">
               <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
                 <span className="text-primary-600 font-medium">
-                  {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
+                  {u_name?.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
                 </span>
               </div>
             </div>
             <div className="ml-3 flex-1">
-              <p className="text-sm font-medium text-gray-700">{user?.name}</p>
-              <p className="text-xs font-medium text-gray-500 capitalize">{user?.role}</p>
+              <p className="text-sm font-medium text-gray-700">{u_name?.email}</p>
+              <p className="text-xs font-medium text-gray-500 capitalize">{u_name?.role}</p>
             </div>
           </div>
         </div>

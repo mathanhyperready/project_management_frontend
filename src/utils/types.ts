@@ -1,14 +1,25 @@
 export interface User {
-  id: string;
-  name: string;
+  id: number;
+  user_name: string;
+  password: string;
   email: string;
-  role: 'admin' | 'manager' | 'user';
-  avatar?: string;
+  rolename: string;
+  status: string;
   createdAt: string;
+  is_active: boolean;
+  role_id : number;
 }
 
+<<<<<<< HEAD
 export interface TimeEntry {
   [key: string]: string; // date as key, time as value (HH:MM:SS)
+=======
+export interface Role {
+  id: number;
+  name: string;
+  is_enabled: boolean;
+  created_at: string;
+>>>>>>> 09b51c45b026581529932ca280117090730f085f
 }
 
 
@@ -49,10 +60,10 @@ export interface LoginInput {
 }
 
 export interface SignupInput {
-  name: string;
+  user_name: string;
   email: string;
   password: string;
-  role: 'user' | 'manager';
+  role_id: number;
 }
 
 export interface AuthResponse {

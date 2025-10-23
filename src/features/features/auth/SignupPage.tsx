@@ -1,26 +1,46 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../hooks/useAuth';
 import { useFormState } from '../../../hooks/useFormState';
 import { Input } from '../../../components/ui/input';
 import { Select } from '../../../components/ui/Select';
 import { Button } from '../../../components/ui/Button';
 import { Card, CardContent, CardHeader } from '../../../components/ui/Card';
 import { validateEmail, validatePassword, validateRequired } from '../../../utils/validators';
+import { authAPI } from '../../../api/auth.api';
 
 const SignupPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { signup } = useAuth();
   const navigate = useNavigate();
+  const [roles, setRoles] = useState<{ value: string; label: string }[]>([]);
+
 
   const { formData, errors, updateField, setError: setFieldError } = useFormState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'user' as 'user' | 'manager',
+    role_id: '',
   });
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const data = await authAPI.getAllRoles(); 
+        const formattedRoles = data.map((role: any) => ({
+          value: role.id, 
+          label: role.name,
+        }));
+        setRoles(formattedRoles);
+      } catch (err) {
+        console.error('Failed to fetch roles:', err);
+      }
+    };
+
+    fetchRoles();
+  }, []);
+
+
 
   const validateForm = (): boolean => {
     let isValid = true;
@@ -47,23 +67,24 @@ const SignupPage: React.FC = () => {
 
     return isValid;
   };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
     try {
-      await signup({
-        name: formData.name,
+      const formDatas = {
+        user_name: formData.name,
         email: formData.email,
         password: formData.password,
-        role: formData.role,
-      });
+        role_id: Number(formData.role_id),
+      };
+      const response = await authAPI.signup(formDatas);
+      localStorage.setItem('access_token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Signup failed. Please try again.');
@@ -71,6 +92,8 @@ const SignupPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -91,7 +114,7 @@ const SignupPage: React.FC = () => {
                   <p className="text-red-800 text-sm">{error}</p>
                 </div>
               )}
-              
+
               <Input
                 label="Full Name"
                 type="text"
@@ -116,13 +139,12 @@ const SignupPage: React.FC = () => {
 
               <Select
                 label="Role"
-                value={formData.role}
-                onChange={(e) => updateField('role', e.target.value as 'user' | 'manager')}
-                options={[
-                  { value: 'user', label: 'User' },
-                  { value: 'manager', label: 'Manager' },
-                ]}
+                value={formData.role_id}
+                onChange={(e) => updateField('role_id', e.target.value)} 
+                options={roles.length > 0 ? roles : [{ value: '', label: 'Loading...' }]}
               />
+
+
 
               <Input
                 label="Password"
@@ -151,7 +173,7 @@ const SignupPage: React.FC = () => {
                 variant="primary"
                 size="lg"
                 loading={loading}
-                className="w-full"
+                className="w-full bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition duration-200"
               >
                 Create Account
               </Button>
@@ -160,10 +182,11 @@ const SignupPage: React.FC = () => {
                 <span className="text-gray-600">Already have an account? </span>
                 <Link
                   to="/auth/login"
-                  className="font-medium text-primary-600 hover:text-primary-500"
+                  className="inline-block w-full text-center bg-amber-700 hover:bg-amber-800 text-white font-medium py-2 px-4 rounded-lg transition duration-200"
                 >
                   Sign in
                 </Link>
+
               </div>
             </form>
           </CardContent>
