@@ -10,6 +10,7 @@ import {
   UserCog, 
   Building2 
 } from 'lucide-react';
+import { BiSolidReport } from "react-icons/bi";
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'User', href: '/user', icon: Users },
   { name: 'Role', href: '/role', icon: UserCog },
   { name: 'Client', href: '/client', icon: Building2 },
+  { name: 'Report', href: '/report', icon: BiSolidReport },
 ];
 
 // const navigation = [

@@ -1,13 +1,9 @@
-// src/components/Calendar/EventModal.tsx
-
 import React, { useState, useEffect } from "react";
 import moment from "moment";
 import { X, MoreVertical } from "lucide-react";
-// import { EventType } from "../../../utils/types";
-import type { EventType } from "../../../utils/types";
 import { calculateDuration } from "../../../utils/timeCalculations";
-import { useAppContext } from "../../../contexts/AppContext";
-
+import { projectsAPI } from "../../../api/projects.api";
+import type { EventType, Project } from "../../../utils/types";
 
 interface EventModalProps {
   show: boolean;
@@ -36,7 +32,6 @@ interface EventModalProps {
 export const EventModal: React.FC<EventModalProps> = ({
   show,
   isEditMode,
-  editingEvent,
   startTime,
   endTime,
   selectedDate,
@@ -56,20 +51,34 @@ export const EventModal: React.FC<EventModalProps> = ({
   setTags,
   setBillable,
 }) => {
-  const { projects } = useAppContext();
   const [duration, setDuration] = useState("00:00:00");
   const [showContextMenu, setShowContextMenu] = useState(false);
+  const [projectList, setProjectList] = useState<Project[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
 
   useEffect(() => {
     setDuration(calculateDuration(startTime, endTime));
   }, [startTime, endTime]);
 
-  const handleTimeChange = (type: 'start' | 'end', value: string) => {
-    if (type === 'start') {
-      setStartTime(value);
-    } else {
-      setEndTime(value);
-    }
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        setLoadingProjects(true);
+        const data = await projectsAPI.getProjects();
+        setProjectList(data);
+      } catch (err) {
+        console.error("❌ Failed to fetch projects:", err);
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
+
+  const handleTimeChange = (type: "start" | "end", value: string) => {
+    if (type === "start") setStartTime(value);
+    else setEndTime(value);
   };
 
   if (!show) return null;
@@ -77,7 +86,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Modal Header */}
+        {/* Header */}
         <div className="p-6 border-b flex justify-between items-center">
           <h2 className="text-xl font-medium text-gray-600">
             {isEditMode ? "Edit time entry" : "Add time entry"}
@@ -87,9 +96,9 @@ export const EventModal: React.FC<EventModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Body */}
+        {/* Body */}
         <div className="p-6 space-y-6">
-          {/* Time and Date Section */}
+          {/* Time and Date */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Time and date
@@ -104,14 +113,14 @@ export const EventModal: React.FC<EventModalProps> = ({
               <input
                 type="time"
                 value={startTime}
-                onChange={(e) => handleTimeChange('start', e.target.value)}
+                onChange={(e) => handleTimeChange("start", e.target.value)}
                 className="px-3 py-2 border rounded text-sm w-24"
               />
               <span className="text-gray-600">-</span>
               <input
                 type="time"
                 value={endTime}
-                onChange={(e) => handleTimeChange('end', e.target.value)}
+                onChange={(e) => handleTimeChange("end", e.target.value)}
                 className="px-3 py-2 border rounded text-sm w-24"
               />
               <input
@@ -136,7 +145,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             />
           </div>
 
-          {/* Project */}
+          {/* Project Dropdown */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Project <span className="text-red-500">*</span>
@@ -144,12 +153,21 @@ export const EventModal: React.FC<EventModalProps> = ({
             <select
               value={project}
               onChange={(e) => setProject(e.target.value)}
+              disabled={loadingProjects}
               className="w-full px-3 py-2 border rounded text-sm bg-white"
             >
               <option value="">Select Project</option>
-             {projects.map((p) => (
-                <option key={p.id} value={p.name}> {p.name}</option>
-            ))}
+              {loadingProjects ? (
+                <option>Loading...</option>
+              ) : projectList.length > 0 ? (
+                projectList.map((p) => (
+                  <option key={p.id} value={p.project_name}>
+                    {p.project_name}
+                  </option>
+                ))
+              ) : (
+                <option>No projects found</option>
+              )}
             </select>
           </div>
 
@@ -175,14 +193,14 @@ export const EventModal: React.FC<EventModalProps> = ({
                 type="checkbox"
                 checked={billable}
                 onChange={(e) => setBillable(e.target.checked)}
-                className="w-11 h-6 rounded"
+                className="w-5 h-5"
               />
               <span className="text-gray-600 font-normal">Yes</span>
             </label>
           </div>
         </div>
 
-        {/* Modal Footer */}
+        {/* Footer */}
         <div className="p-6 border-t flex justify-between items-center">
           {isEditMode && (
             <div className="relative">

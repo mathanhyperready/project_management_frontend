@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import type { EventType, Project, AppContextType } from "../utils/types";
 import { formatDate, formatTime } from "../utils/timeCalculations";
+import { projectsAPI } from "../api/projects.api";
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -32,37 +33,29 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return [];
   });
 
-  const [projects, setProjects] = useState<Project[]>([
-      { 
-        id: 1, 
-        name: "DEMO", 
-        color: "#ef4444",
-        description: "Demo Project",
-        startDate: new Date().toISOString(),
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-        status: "active",
-        members: [],
-        createdBy: "system",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        timeEntries: {} 
-    },
-    { 
-        id: 2, 
-        name: "TEST", 
-        color: "#22c55e",
-        description: "Test Project",
-        startDate: new Date().toISOString(),
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        status: "active",
-        members: [],
-        createdBy: "system",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        timeEntries: {} 
-    },
-    
-  ]);
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const data = await projectsAPI.getProjects(); // fetch all projects
+        const formattedProjects = data.map((p: any) => ({
+          id: p.id,
+          name: p.project_name,
+          description: p.description,
+          color: "#" + Math.floor(Math.random() * 16777215).toString(16), // random color
+          startDate: p.start_date,
+          endDate: p.end_date,
+          status: "active",
+          timeEntries: {} as { [key: string]: string },
+        }));
+        setProjects(formattedProjects);
+      } catch (err) {
+        console.error("Failed to fetch projects:", err);
+      }
+    };
+    fetchProjects();
+  }, []);
 
   // Save events to localStorage whenever they change
   useEffect(() => {

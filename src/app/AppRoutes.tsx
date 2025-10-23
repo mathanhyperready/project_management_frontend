@@ -149,6 +149,7 @@ const ProjectDetailPage = React.lazy(() => import('../features/features/projects
 const RoleList = React.lazy(() => import('../features/features/role/RoleList'));
 const UserList = React.lazy(() => import('../features/features/user/UserList'));
 const ClientList = React.lazy(() => import('../features/features/client/ClientList'));
+const ReportPage = React.lazy(() => import('../features/features/report/ReportList'));
 // const {App} = React.lazy(() => import('../contexts/AppContext'));
 // Calendar and Timesheet - USE YOUR EXISTING PATHS
 const CalendarView = React.lazy(() => import('../features/features/calendar/calender'));
@@ -191,6 +192,11 @@ export const AppRoutes: React.FC = () => {
         <Route path="/projects/:id" element={
           <ProtectedRoute>
             <ProjectDetailPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/report" element={
+          <ProtectedRoute>
+            <ReportPage />
           </ProtectedRoute>
         } />
         <Route path="/calendar" element={

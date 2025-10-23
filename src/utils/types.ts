@@ -63,12 +63,14 @@ export interface TimeEntry {
 
 export interface Project {
   id: number;
-  project_name: string;
+  name: string;
+  is_enabled : boolean;
   description: string;
   start_date: string;
   end_date: string;
   status: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD';
   client_id: number | null;
+  timeEntries: TimeEntry; // date as key, time as value (HH:MM:SS)
   // Add these if you want to persist UI state
   color?: string;
   is_public?: boolean;
