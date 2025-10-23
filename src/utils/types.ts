@@ -18,6 +18,17 @@ export interface Role {
 
 }
 
+export interface Client {
+  id : number;
+  name : string;
+  createdAt : string;
+  address : string;
+  contact : string;
+  email : string;
+  notes : string;
+  
+}
+
 export interface TimeEntry {
   [key: string]: string; // date as key, time as value (HH:MM:SS)
 
