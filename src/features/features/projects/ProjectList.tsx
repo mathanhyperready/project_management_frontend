@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { Search, Star, MoreVertical, ChevronDown, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { projectsAPI } from "../../../api/projects.api";
+import { usersAPI } from "../../../api/client.api";
+import type { Client } from "../../../utils/types";
+// import { now } from "moment";
 
 // Frontend Project Interface (for UI display)
 interface Project {
@@ -47,7 +50,7 @@ interface BackendProject {
 const ProjectsPage: React.FC = () => {
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +65,7 @@ const ProjectsPage: React.FC = () => {
   const [showBillingDropdown, setShowBillingDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [activeProjectMenu, setActiveProjectMenu] = useState<number | null>(null);
+  const today = new Date().toISOString().split("T")[0];
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -73,10 +77,46 @@ const ProjectsPage: React.FC = () => {
 
   // Form states
   const [projectName, setProjectName] = useState("");
-  const [selectedClient, setSelectedClient] = useState("");
+  // const [selectedClient, setSelectedClient] = useState("");
   const [selectedColor, setSelectedColor] = useState("#a855f7");
   const [isPublic, setIsPublic] = useState(true);
   const [startDate, setStartDate] = useState("");
+  const [endDate, setendDate] = useState("");
+
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClient, setSelectedClient] = useState("");
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [clientsError, setClientsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  const fetchClients = async () => {
+    try {
+      setLoadingClients(true);
+      setClientsError(null);
+
+      const response = await usersAPI.getClients();
+      let clientList: Client[] = [];
+
+      if (Array.isArray(response)) {
+        clientList = response;
+      } else if (Array.isArray(response.data)) {
+        clientList = response.data;
+      } else {
+        console.log("Unexpected response format:", response);
+      }
+
+      setClients(clientList);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      setClientsError("Failed to load clients");
+    } finally {
+      setLoadingClients(false);
+    }
+  };
+
 
   const colors = [
     "#84cc16", "#ec4899", "#a855f7", "#3b82f6",
@@ -86,7 +126,7 @@ const ProjectsPage: React.FC = () => {
   // Transform backend data to frontend format
   const transformBackendProject = (backendProject: BackendProject): Project => {
     const totalTracked = backendProject.timesheets?.reduce((sum, ts) => sum + ts.duration, 0) || 0;
-    
+
     return {
       id: backendProject.id,
       name: backendProject.project_name,
@@ -109,10 +149,10 @@ const ProjectsPage: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await projectsAPI.getProjects();
-      
+
       // Handle different response structures
       let backendProjects: BackendProject[] = [];
-      
+
       if (Array.isArray(response)) {
         // If response is directly an array
         backendProjects = response as unknown as BackendProject[];
@@ -126,7 +166,7 @@ const ProjectsPage: React.FC = () => {
         console.error("Unexpected response structure:", response);
         throw new Error("Invalid response format from API");
       }
-      
+
       const transformedProjects = backendProjects.map(transformBackendProject);
       setProjects(transformedProjects);
     } catch (err: any) {
@@ -143,10 +183,10 @@ const ProjectsPage: React.FC = () => {
 
   const filteredProjects = projects.filter((project) => {
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesActive = activeFilter === "all" || 
+    const matchesActive = activeFilter === "all" ||
       (activeFilter === "active" && project.active) ||
       (activeFilter === "inactive" && !project.active);
-    const matchesClient = clientFilter === "all" || 
+    const matchesClient = clientFilter === "all" ||
       (clientFilter === "none" && !project.client) ||
       project.client === clientFilter;
     const matchesBillable = billableFilter === "all" ||
@@ -157,7 +197,7 @@ const ProjectsPage: React.FC = () => {
   });
 
   const toggleFavorite = (id: number) => {
-    setProjects(projects.map(p => 
+    setProjects(projects.map(p =>
       p.id === id ? { ...p, favorite: !p.favorite } : p
     ));
     // TODO: Update favorite status in backend
@@ -190,30 +230,32 @@ const ProjectsPage: React.FC = () => {
       alert("Please enter a project name");
       return;
     }
+    const userData = localStorage.getItem('user');
+    const userId = userData ? JSON.parse(userData).id : null;
 
     try {
       const newProjectData = {
         project_name: projectName,
         description: "",
         start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
-        end_date: "",
+        end_date: endDate ? new Date(endDate).toISOString() : undefined,
         status: "PLANNED",
-        client_id: null, // Map from selectedClient if you have client management
-        user_id: null, // Add current user ID from auth context
+        client_id: selectedClient ? parseInt(selectedClient) : null,
+        user_id: userId
       };
 
       const createdProject = await projectsAPI.createProject(newProjectData);
       // Cast to BackendProject since API returns backend format
       const backendProject = createdProject as unknown as BackendProject;
       const transformedProject = transformBackendProject(backendProject);
-      
+
       // Add UI-only properties
       transformedProject.color = selectedColor;
       transformedProject.access = isPublic ? "Public" : "Private";
-      
+
       setProjects([...projects, transformedProject]);
       setShowModal(false);
-      
+
       // Show success message
       alert("Project created successfully!");
     } catch (err: any) {
@@ -237,21 +279,21 @@ const ProjectsPage: React.FC = () => {
       };
 
       await projectsAPI.updateProject(String(editingProject.id), updateData);
-      
+
       // Update local state
       setProjects(projects.map(p =>
         p.id === editingProject.id
           ? {
-              ...p,
-              name: projectName,
-              client: selectedClient,
-              color: selectedColor,
-              access: isPublic ? "Public" : "Private",
-              startDate: startDate,
-            }
+            ...p,
+            name: projectName,
+            client: selectedClient,
+            color: selectedColor,
+            access: isPublic ? "Public" : "Private",
+            startDate: startDate,
+          }
           : p
       ));
-      
+
       setShowModal(false);
       alert("Project updated successfully!");
     } catch (err: any) {
@@ -312,12 +354,12 @@ const ProjectsPage: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ 
-      minHeight: "100vh", 
+    <div style={{
+      minHeight: "100vh",
       backgroundColor: "#f3f4f6",
       padding: "2rem"
     }}
-    ref={menuRef}
+      ref={menuRef}
     >
       {/* Loading State */}
       {loading && (
@@ -648,7 +690,7 @@ const ProjectsPage: React.FC = () => {
               </div>
 
               {/* Apply Filter Button */}
-              <button 
+              <button
                 onClick={fetchProjects}
                 style={{
                   padding: "0.5rem 1.5rem",
@@ -837,11 +879,11 @@ const ProjectsPage: React.FC = () => {
                           <input type="checkbox" style={{ cursor: "pointer" }} />
                         </td>
                         <td style={{ padding: "1rem 1.5rem" }}>
-                          <div 
-                            onClick={() => navigate(`/projects/${project.id}`)} 
-                            style={{ 
-                              display: "flex", 
-                              alignItems: "center", 
+                          <div
+                            onClick={() => navigate(`/projects/${project.id}`)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
                               gap: "0.5rem",
                               cursor: "pointer"
                             }}
@@ -1044,6 +1086,7 @@ const ProjectsPage: React.FC = () => {
 
                 {/* Client Dropdown */}
                 <select
+                  id="client"
                   value={selectedClient}
                   onChange={(e) => setSelectedClient(e.target.value)}
                   style={{
@@ -1053,12 +1096,16 @@ const ProjectsPage: React.FC = () => {
                     fontSize: "0.875rem",
                     backgroundColor: "white",
                     color: selectedClient ? "#374151" : "#9ca3af",
+                    width: "100%",
                   }}
                 >
                   <option value="">Select client</option>
-                  <option value="Client A">Client A</option>
-                  <option value="Client B">Client B</option>
-                  <option value="Client C">Client C</option>
+                  {Array.isArray(clients) &&
+                    clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name || c.email}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -1111,8 +1158,8 @@ const ProjectsPage: React.FC = () => {
                           />
                         ))}
                       </div>
-                      <div style={{ 
-                        paddingTop: "0.5rem", 
+                      <div style={{
+                        paddingTop: "0.5rem",
                         borderTop: "1px solid #e5e7eb",
                         display: "flex",
                         gap: "0.5rem",
@@ -1158,14 +1205,14 @@ const ProjectsPage: React.FC = () => {
                             marginBottom: "0.75rem",
                             cursor: "crosshair",
                           }}
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const x = e.clientX - rect.left;
-                            const y = e.clientY - rect.top;
-                            const lightness = Math.round((1 - y / 180) * 50 + 25);
-                            const saturation = Math.round((x / 180) * 100);
-                            setCustomColor(`hsl(30, ${saturation}%, ${lightness}%)`);
-                          }}
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const x = e.clientX - rect.left;
+                              const y = e.clientY - rect.top;
+                              const lightness = Math.round((1 - y / 180) * 50 + 25);
+                              const saturation = Math.round((x / 180) * 100);
+                              setCustomColor(`hsl(30, ${saturation}%, ${lightness}%)`);
+                            }}
                           >
                             <div style={{
                               width: "12px",
@@ -1285,7 +1332,7 @@ const ProjectsPage: React.FC = () => {
                 </label>
                 <input
                   type="date"
-                  value={startDate}
+                  value={startDate || today}
                   onChange={(e) => setStartDate(e.target.value)}
                   style={{
                     width: "100%",
@@ -1297,7 +1344,33 @@ const ProjectsPage: React.FC = () => {
                   }}
                 />
               </div>
+
+               <div style={{ marginBottom: "1rem" }}>
+                <label style={{
+                  display: "block",
+                  marginBottom: "0.5rem",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  color: "#374151",
+                }}>
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={startDate || today}
+                  onChange={(e) => setendDate(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    fontSize: "0.875rem",
+                    outline: "none",
+                  }}
+                />
+              </div>
             </div>
+            
 
             {/* Modal Footer */}
             <div style={{
@@ -1347,3 +1420,11 @@ const ProjectsPage: React.FC = () => {
 };
 
 export default ProjectsPage;
+
+function setLoadingClients(arg0: boolean) {
+  throw new Error("Function not implemented.");
+}
+function setClientsError(arg0: null) {
+  throw new Error("Function not implemented.");
+}
+
