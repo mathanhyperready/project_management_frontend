@@ -1,11 +1,22 @@
 export interface User {
-  id: string;
-  name: string;
+  id: number;
+  user_name: string;
+  password: string;
   email: string;
-  role: 'admin' | 'manager' | 'user';
-  avatar?: string;
+  rolename: string;
+  status: string;
   createdAt: string;
+  is_active: boolean;
+  role_id : number;
 }
+
+export interface Role {
+  id: number;
+  name: string;
+  is_enabled: boolean;
+  created_at: string;
+}
+
 
 export interface Project {
   id: string;
@@ -42,10 +53,10 @@ export interface LoginInput {
 }
 
 export interface SignupInput {
-  name: string;
+  user_name: string;
   email: string;
   password: string;
-  role: 'user' | 'manager';
+  role_id: number;
 }
 
 export interface AuthResponse {
