@@ -2,7 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Star, MoreVertical, Plus, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { usersAPI } from "../../../api/client.api";
-import type { Client } from "../../../utils/types";
+import type { Client, PaginatedResponse, PaginationParams, Role } from "../../../utils/types";
+import { projectsAPI } from "../../../api/projects.api"
+import { useParams } from "react-router-dom";
 
 interface TimeEntry {
   id: number;
@@ -21,12 +23,14 @@ interface TeamMember {
 }
 
 const ProjectDetail: React.FC = () => {
-  const [activeTab, setActiveTab] = useState("timesheet");
+  const [activeTab, setActiveTab] = useState("status");
   const [isFavorite, setIsFavorite] = useState(false);
   const navigate = useNavigate();
 
+  const { id } = useParams<{ id: string }>();
+
   // Project data
-  const [projectName, setProjectName] = useState("DEMO");
+  const [projectName, setProjectName] = useState("");
   const [client, setClient] = useState("");
   const [projectColor, setProjectColor] = useState("#84cc16");
   const [isBillable, setIsBillable] = useState(true);
@@ -40,23 +44,47 @@ const ProjectDetail: React.FC = () => {
   const [loadingClients, setLoadingClients] = useState(false);
   const [clientsError, setClientsError] = useState<string | null>(null);
 
+  const [projectDatas, setprojectDatas] = useState<any | null>([])
+
+
   // Stats
-  const [totalTracked] = useState("3.01h");
+  const [totalTracked, settotalTracked] = useState("");
   const [billableTime] = useState("3.01h");
   const [nonBillableTime] = useState("0.00h");
   const [totalAmount] = useState("0.00 USD");
 
   // Time entries
-  const [timeEntries] = useState<TimeEntry[]>([
-    {
-      id: 1,
-      name: "Without Task",
-      assignees: "Anyone",
-      tracked: "3.01h",
-      amount: "0.00 USD",
-      date: "2025-10-13",
-    },
-  ]);
+
+  useEffect(() => {
+    const fetchTimesheetProject = async () => {
+      // setLoading(true);
+      try {
+        const params: Partial<PaginationParams> = {};
+        const response = await projectsAPI.getProjectById(id);
+        if (response && Array.isArray(response.timesheets)) {
+          const total = response.timesheets.reduce(
+            (sum, element) => sum + (Number(element.duration) || 0),
+            0
+          );
+          settotalTracked(total)
+        }
+
+        setprojectDatas(response)
+        setProjectName(response.project_name)
+
+        // setRoles(Array.isArray(response) ? response : []);
+      } catch (err) {
+        // setError("Failed to fetch roles. Please try again.");
+        console.error(err);
+      } finally {
+        // setLoading(false);
+      }
+    };
+
+    fetchTimesheetProject();
+  }, []);
+
+
 
   // Team members
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
@@ -76,8 +104,26 @@ const ProjectDetail: React.FC = () => {
     try {
       setLoadingClients(true);
       setClientsError(null);
-      const response = await usersAPI.getClients({ page: 1, limit: 100 });
-      setClients(response.data || []);
+
+      const response = await usersAPI.getClients();
+      let clientList: Client[] = [];
+
+      if (Array.isArray(response)) {
+        clientList = response;
+        response.forEach(client => {
+          console.log(client.name, "kjhgfghjkl;lkjhg");
+        });
+      } else if (Array.isArray(response.data)) {
+        clientList = response.data;
+        response.data.forEach(client => {
+          console.log(client.name, "kjhgfghjkl;lkjhg");
+        });
+      } else {
+        console.log("Unexpected response format:", response);
+      }
+
+      setClients(clientList);
+
     } catch (error) {
       console.error("Error fetching clients:", error);
       setClientsError("Failed to load clients");
@@ -85,6 +131,7 @@ const ProjectDetail: React.FC = () => {
       setLoadingClients(false);
     }
   };
+
 
   const handleAddMember = () => {
     if (newMemberEmail) {
@@ -103,6 +150,8 @@ const ProjectDetail: React.FC = () => {
   const handleRemoveMember = (id: number) => {
     setTeamMembers(teamMembers.filter((m) => m.id !== id));
   };
+  const today = new Date().toISOString().split("T")[0];
+
 
   const handleSaveSettings = async () => {
     try {
@@ -183,7 +232,7 @@ const ProjectDetail: React.FC = () => {
         marginBottom: "2rem",
         borderBottom: "1px solid #e5e7eb",
       }}>
-        {["timesheet", "status", "settings", "access"].map((tab) => (
+        {["status", "settings", "access"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -205,143 +254,6 @@ const ProjectDetail: React.FC = () => {
         ))}
       </div>
 
-      {/* Timesheet Tab */}
-      {activeTab === "timesheet" && (
-        <div>
-          <div style={{
-            backgroundColor: "white",
-            borderRadius: "8px",
-            boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
-            overflow: "hidden",
-          }}>
-            <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "#f9fafb",
-              borderBottom: "1px solid #e5e7eb",
-            }}>
-              <span style={{
-                fontSize: "0.875rem",
-                color: "#6b7280",
-                fontWeight: "500",
-              }}>
-                Timesheets
-              </span>
-              <button style={{
-                fontSize: "0.75rem",
-                color: "#22d3ee",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-              }}>
-                Show all →
-              </button>
-            </div>
-
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                  <th style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                  }}>
-                    NAME ▲
-                  </th>
-                  <th style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                  }}>
-                    DATE
-                  </th>
-                  <th style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                  }}>
-                    ASSIGNEES
-                  </th>
-                  <th style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                  }}>
-                    TRACKED
-                  </th>
-                  <th style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                  }}>
-                    AMOUNT
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {timeEntries.map((entry) => (
-                  <tr key={entry.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                    <td style={{
-                      padding: "1rem 1.5rem",
-                      fontSize: "0.875rem",
-                      color: "#374151",
-                    }}>
-                      {entry.name}
-                    </td>
-                    <td style={{
-                      padding: "1rem 1.5rem",
-                      fontSize: "0.875rem",
-                      color: "#6b7280",
-                    }}>
-                      {entry.date}
-                    </td>
-                    <td style={{
-                      padding: "1rem 1.5rem",
-                      fontSize: "0.875rem",
-                      color: "#6b7280",
-                    }}>
-                      {entry.assignees}
-                    </td>
-                    <td style={{
-                      padding: "1rem 1.5rem",
-                      fontSize: "0.875rem",
-                      color: "#6b7280",
-                    }}>
-                      {entry.tracked}
-                    </td>
-                    <td style={{
-                      padding: "1rem 1.5rem",
-                      fontSize: "0.875rem",
-                      color: "#374151",
-                    }}>
-                      {entry.amount}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Status Tab */}
       {activeTab === "status" && (
         <div>
           <div style={{
@@ -700,7 +612,7 @@ const ProjectDetail: React.FC = () => {
               </label>
               <input
                 type="date"
-                value={startDate}
+                value={startDate || today}
                 onChange={(e) => setStartDate(e.target.value)}
                 style={{
                   width: "100%",
@@ -708,8 +620,10 @@ const ProjectDetail: React.FC = () => {
                   border: "1px solid #d1d5db",
                   borderRadius: "4px",
                   fontSize: "0.875rem",
+                  outline: "none",
                 }}
               />
+
             </div>
 
             {/* Rate */}
@@ -1015,3 +929,11 @@ const ProjectDetail: React.FC = () => {
 };
 
 export default ProjectDetail;
+
+// function setLoading(arg0: boolean) {
+//   throw new Error("Function not implemented.");
+// }
+// function setRoles(arg0: never[] | (PaginatedResponse<Role> & any[])) {
+//   throw new Error("Function not implemented.");
+// }
+
