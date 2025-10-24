@@ -2,6 +2,16 @@ import React, { useState, useEffect, useRef } from "react";
 import { Search, Star, MoreVertical, ChevronDown, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { projectsAPI } from "../../../api/projects.api";
+import { clientsAPI } from "../../../api/client.api";
+import type { Client } from "../../../utils/types";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // Frontend Project Interface (for UI display)
 interface Project {
@@ -47,7 +57,7 @@ interface BackendProject {
 const ProjectsPage: React.FC = () => {
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +72,12 @@ const ProjectsPage: React.FC = () => {
   const [showBillingDropdown, setShowBillingDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [activeProjectMenu, setActiveProjectMenu] = useState<number | null>(null);
+  const today = new Date().toISOString().split("T")[0];
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -77,58 +93,104 @@ const ProjectsPage: React.FC = () => {
   const [selectedColor, setSelectedColor] = useState("#a855f7");
   const [isPublic, setIsPublic] = useState(true);
   const [startDate, setStartDate] = useState("");
+  const [endDate, setendDate] = useState("");
+
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [clientsError, setClientsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  const fetchClients = async () => {
+    try {
+      setLoadingClients(true);
+      setClientsError(null);
+
+      const response = await clientsAPI.getClients();
+      let clientList: Client[] = [];
+
+      if (Array.isArray(response)) {
+        clientList = response;
+      } else if (Array.isArray(response.data)) {
+        clientList = response.data;
+      } else {
+        console.log("Unexpected response format:", response);
+      }
+
+      setClients(clientList);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      setClientsError("Failed to load clients");
+    } finally {
+      setLoadingClients(false);
+    }
+  };
 
   const colors = [
-    "#84cc16", "#ec4899", "#a855f7", "#3b82f6",
-    "#06b6d4", "#22d3ee", "#14b8a6", "#f97316", "#9e9e9e"
+    "#84cc16",
+    "#ec4899",
+    "#a855f7",
+    "#3b82f6",
+    "#06b6d4",
+    "#22d3ee",
+    "#14b8a6",
+    "#f97316",
+    "#9e9e9e",
   ];
 
   // Transform backend data to frontend format
   const transformBackendProject = (backendProject: BackendProject): Project => {
     const totalTracked = backendProject.timesheets?.reduce((sum, ts) => sum + ts.duration, 0) || 0;
-    
+
     return {
       id: backendProject.id,
       name: backendProject.project_name,
       client: backendProject.client?.name || "",
       tracked: `${totalTracked.toFixed(2)}h`,
-      amount: "0.00 USD", // Calculate based on your business logic
+      amount: "0.00 USD",
       progress: "-",
-      access: "Public", // You can add this field to backend
-      billable: true, // You can add this field to backend
+      access: "Public",
+      billable: true,
       active: backendProject.status === "IN_PROGRESS" || backendProject.status === "PLANNED",
-      favorite: false, // Store this in backend or use localStorage
-      color: "#a855f7", // Store this in backend or use localStorage
-      startDate: backendProject.start_date.split('T')[0],
+      favorite: false,
+      color: "#a855f7",
+      startDate: backendProject.start_date.split("T")[0],
     };
   };
 
-  // Fetch projects from API
+  // Fetch projects from API with pagination
   const fetchProjects = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await projectsAPI.getProjects();
-      
-      // Handle different response structures
+      const response = await projectsAPI.getProjects({ page: currentPage, limit: itemsPerPage });
+
       let backendProjects: BackendProject[] = [];
-      
+      let totalItems = 0;
+
       if (Array.isArray(response)) {
-        // If response is directly an array
         backendProjects = response as unknown as BackendProject[];
+        totalItems = backendProjects.length;
       } else if (response.data && Array.isArray(response.data)) {
-        // If response has a data property that's an array
         backendProjects = response.data as unknown as BackendProject[];
+        totalItems = response.total || backendProjects.length;
       } else if (response.items && Array.isArray(response.items)) {
-        // If response has an items property (common in paginated responses)
         backendProjects = response.items as unknown as BackendProject[];
+        totalItems = response.total || backendProjects.length;
       } else {
         console.error("Unexpected response structure:", response);
         throw new Error("Invalid response format from API");
       }
-      
+
       const transformedProjects = backendProjects.map(transformBackendProject);
       setProjects(transformedProjects);
+      setTotalPages(Math.ceil(totalItems / itemsPerPage));
+      // Adjust currentPage if it exceeds the new totalPages
+      if (currentPage > Math.ceil(totalItems / itemsPerPage)) {
+        setCurrentPage(1);
+      }
     } catch (err: any) {
       console.error("Error fetching projects:", err);
       setError(err.response?.data?.message || err.message || "Failed to load projects. Please try again.");
@@ -139,28 +201,26 @@ const ProjectsPage: React.FC = () => {
 
   useEffect(() => {
     fetchProjects();
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   const filteredProjects = projects.filter((project) => {
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesActive = activeFilter === "all" || 
-      (activeFilter === "active" && project.active) ||
-      (activeFilter === "inactive" && !project.active);
-    const matchesClient = clientFilter === "all" || 
-      (clientFilter === "none" && !project.client) ||
-      project.client === clientFilter;
-    const matchesBillable = billableFilter === "all" ||
+    const matchesActive =
+      activeFilter === "all" || (activeFilter === "active" && project.active) || (activeFilter === "inactive" && !project.active);
+    const matchesClient =
+      clientFilter === "all" || (clientFilter === "none" && !project.client) || project.client === clientFilter;
+    const matchesBillable =
+      billableFilter === "all" ||
       (billableFilter === "billable" && project.billable) ||
       (billableFilter === "non-billable" && !project.billable);
 
     return matchesSearch && matchesActive && matchesClient && matchesBillable;
   });
 
+  const paginatedProjects = filteredProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   const toggleFavorite = (id: number) => {
-    setProjects(projects.map(p => 
-      p.id === id ? { ...p, favorite: !p.favorite } : p
-    ));
-    // TODO: Update favorite status in backend
+    setProjects(projects.map((p) => (p.id === id ? { ...p, favorite: !p.favorite } : p)));
   };
 
   const openCreateModal = () => {
@@ -190,32 +250,31 @@ const ProjectsPage: React.FC = () => {
       alert("Please enter a project name");
       return;
     }
+    const userData = localStorage.getItem("user");
+    const userId = userData ? JSON.parse(userData).id : null;
 
     try {
       const newProjectData = {
         project_name: projectName,
         description: "",
         start_date: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
-        end_date: "",
+        end_date: endDate ? new Date(endDate).toISOString() : undefined,
         status: "PLANNED",
-        client_id: null, // Map from selectedClient if you have client management
-        user_id: null, // Add current user ID from auth context
+        client_id: selectedClient ? parseInt(selectedClient) : null,
+        user_id: userId,
       };
 
       const createdProject = await projectsAPI.createProject(newProjectData);
-      // Cast to BackendProject since API returns backend format
       const backendProject = createdProject as unknown as BackendProject;
       const transformedProject = transformBackendProject(backendProject);
-      
-      // Add UI-only properties
+
       transformedProject.color = selectedColor;
       transformedProject.access = isPublic ? "Public" : "Private";
-      
+
       setProjects([...projects, transformedProject]);
       setShowModal(false);
-      
-      // Show success message
       alert("Project created successfully!");
+      setCurrentPage(1); // Reset to first page on create
     } catch (err: any) {
       console.error("Error creating project:", err);
       alert(err.response?.data?.message || "Failed to create project. Please try again.");
@@ -233,25 +292,26 @@ const ProjectsPage: React.FC = () => {
         project_name: projectName,
         start_date: startDate ? new Date(startDate).toISOString() : undefined,
         description: "",
-        client_id: null, // Map from selectedClient
+        client_id: null,
       };
 
       await projectsAPI.updateProject(String(editingProject.id), updateData);
-      
-      // Update local state
-      setProjects(projects.map(p =>
-        p.id === editingProject.id
-          ? {
-              ...p,
-              name: projectName,
-              client: selectedClient,
-              color: selectedColor,
-              access: isPublic ? "Public" : "Private",
-              startDate: startDate,
-            }
-          : p
-      ));
-      
+
+      setProjects(
+        projects.map((p) =>
+          p.id === editingProject.id
+            ? {
+                ...p,
+                name: projectName,
+                client: selectedClient,
+                color: selectedColor,
+                access: isPublic ? "Public" : "Private",
+                startDate: startDate,
+              }
+            : p
+        )
+      );
+
       setShowModal(false);
       alert("Project updated successfully!");
     } catch (err: any) {
@@ -267,9 +327,13 @@ const ProjectsPage: React.FC = () => {
 
     try {
       await projectsAPI.deleteProject(String(id));
-      setProjects(projects.filter(p => p.id !== id));
+      setProjects(projects.filter((p) => p.id !== id));
       setActiveProjectMenu(null);
       alert("Project deleted successfully!");
+      // Adjust current page if necessary
+      if (filteredProjects.length <= itemsPerPage && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      }
     } catch (err: any) {
       console.error("Error deleting project:", err);
       alert(err.response?.data?.message || "Failed to delete project. Please try again.");
@@ -284,16 +348,28 @@ const ProjectsPage: React.FC = () => {
     };
     setProjects([...projects, newProject]);
     setActiveProjectMenu(null);
-    // TODO: Create duplicate via API
   };
 
   const handleExport = (format: string) => {
     alert(`Exporting projects as ${format}...`);
     setShowExportDropdown(false);
-    // TODO: Implement export functionality
   };
 
-  // Close dropdown when clicking outside
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  // Handle items per page change
+  const handleItemsPerPageChange = (value: string) => {
+    const newItemsPerPage = parseInt(value);
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page when items per page changes
+    setTotalPages(Math.ceil(filteredProjects.length / newItemsPerPage));
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -305,47 +381,50 @@ const ProjectsPage: React.FC = () => {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
   return (
-    <div style={{ 
-      minHeight: "100vh", 
-      backgroundColor: "#f3f4f6",
-      padding: "2rem"
-    }}
-    ref={menuRef}
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#f3f4f6",
+        padding: "2rem",
+      }}
+      ref={menuRef}
     >
-      {/* Loading State */}
       {loading && (
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "400px",
-          fontSize: "1.125rem",
-          color: "#6b7280",
-        }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: "400px",
+            fontSize: "1.125rem",
+            color: "#6b7280",
+          }}
+        >
           Loading projects...
         </div>
       )}
 
-      {/* Error State */}
       {error && !loading && (
-        <div style={{
-          backgroundColor: "#fee2e2",
-          border: "1px solid #ef4444",
-          borderRadius: "8px",
-          padding: "1rem",
-          marginBottom: "1rem",
-          color: "#991b1b",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}>
+        <div
+          style={{
+            backgroundColor: "#fee2e2",
+            border: "1px solid #ef4444",
+            borderRadius: "8px",
+            padding: "1rem",
+            marginBottom: "1rem",
+            color: "#991b1b",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <span>{error}</span>
           <button
             onClick={fetchProjects}
@@ -364,22 +443,24 @@ const ProjectsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Main Content - Only show when not loading */}
       {!loading && (
         <>
-          {/* Header */}
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "2rem",
-          }}>
-            <h1 style={{
-              fontSize: "1.5rem",
-              fontWeight: "400",
-              color: "#374151",
-              margin: 0,
-            }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "2rem",
+            }}
+          >
+            <h1
+              style={{
+                fontSize: "1.5rem",
+                fontWeight: "400",
+                color: "#374151",
+                margin: 0,
+              }}
+            >
               Projects
             </h1>
             <button
@@ -401,31 +482,35 @@ const ProjectsPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Filter Section */}
-          <div style={{
-            backgroundColor: "white",
-            borderRadius: "8px",
-            padding: "1rem",
-            marginBottom: "1rem",
-            boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
-          }}>
-            <div style={{
-              display: "flex",
-              gap: "1rem",
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}>
-              <span style={{
-                fontSize: "0.875rem",
-                color: "#9ca3af",
-                fontWeight: "500",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}>
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "8px",
+              padding: "1rem",
+              marginBottom: "1rem",
+              boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: "1rem",
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.875rem",
+                  color: "#9ca3af",
+                  fontWeight: "500",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
                 FILTER
               </span>
 
-              {/* Active Dropdown */}
               <div style={{ position: "relative" }}>
                 <button
                   onClick={() => {
@@ -449,24 +534,27 @@ const ProjectsPage: React.FC = () => {
                   Active <ChevronDown size={16} />
                 </button>
                 {showActiveDropdown && (
-                  <div style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    marginTop: "0.25rem",
-                    backgroundColor: "white",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "4px",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                    zIndex: 10,
-                    minWidth: "150px",
-                  }}>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      marginTop: "0.25rem",
+                      backgroundColor: "white",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                      zIndex: 10,
+                      minWidth: "150px",
+                    }}
+                  >
                     {["all", "active", "inactive"].map((filter) => (
                       <div
                         key={filter}
                         onClick={() => {
                           setActiveFilter(filter);
                           setShowActiveDropdown(false);
+                          setCurrentPage(1);
                         }}
                         style={{
                           padding: "0.625rem 1rem",
@@ -483,7 +571,6 @@ const ProjectsPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Client Dropdown */}
               <div style={{ position: "relative" }}>
                 <button
                   onClick={() => {
@@ -507,22 +594,25 @@ const ProjectsPage: React.FC = () => {
                   Client <ChevronDown size={16} />
                 </button>
                 {showClientDropdown && (
-                  <div style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    marginTop: "0.25rem",
-                    backgroundColor: "white",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "4px",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                    zIndex: 10,
-                    minWidth: "150px",
-                  }}>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      marginTop: "0.25rem",
+                      backgroundColor: "white",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                      zIndex: 10,
+                      minWidth: "150px",
+                    }}
+                  >
                     <div
                       onClick={() => {
                         setClientFilter("all");
                         setShowClientDropdown(false);
+                        setCurrentPage(1);
                       }}
                       style={{
                         padding: "0.625rem 1rem",
@@ -538,6 +628,7 @@ const ProjectsPage: React.FC = () => {
                       onClick={() => {
                         setClientFilter("none");
                         setShowClientDropdown(false);
+                        setCurrentPage(1);
                       }}
                       style={{
                         padding: "0.625rem 1rem",
@@ -553,7 +644,6 @@ const ProjectsPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Billing Dropdown */}
               <div style={{ position: "relative" }}>
                 <button
                   onClick={() => {
@@ -577,28 +667,31 @@ const ProjectsPage: React.FC = () => {
                   Billing <ChevronDown size={16} />
                 </button>
                 {showBillingDropdown && (
-                  <div style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    marginTop: "0.25rem",
-                    backgroundColor: "white",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "4px",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                    zIndex: 10,
-                    minWidth: "150px",
-                  }}>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      marginTop: "0.25rem",
+                      backgroundColor: "white",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                      zIndex: 10,
+                      minWidth: "150px",
+                    }}
+                  >
                     {[
                       { value: "all", label: "All" },
                       { value: "billable", label: "Billable" },
-                      { value: "non-billable", label: "Non billable" }
+                      { value: "non-billable", label: "Non billable" },
                     ].map((option) => (
                       <div
                         key={option.value}
                         onClick={() => {
                           setBillableFilter(option.value);
                           setShowBillingDropdown(false);
+                          setCurrentPage(1);
                         }}
                         style={{
                           padding: "0.625rem 1rem",
@@ -615,12 +708,13 @@ const ProjectsPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Search Input */}
-              <div style={{
-                flex: 1,
-                position: "relative",
-                minWidth: "250px",
-              }}>
+              <div
+                style={{
+                  flex: 1,
+                  position: "relative",
+                  minWidth: "250px",
+                }}
+              >
                 <Search
                   size={18}
                   style={{
@@ -635,7 +729,10 @@ const ProjectsPage: React.FC = () => {
                   type="text"
                   placeholder="Find by name"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   style={{
                     width: "100%",
                     padding: "0.5rem 0.75rem 0.5rem 2.5rem",
@@ -647,8 +744,7 @@ const ProjectsPage: React.FC = () => {
                 />
               </div>
 
-              {/* Apply Filter Button */}
-              <button 
+              <button
                 onClick={fetchProjects}
                 style={{
                   padding: "0.5rem 1.5rem",
@@ -668,27 +764,31 @@ const ProjectsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Projects Table */}
-          <div style={{
-            backgroundColor: "white",
-            borderRadius: "8px",
-            boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
-            overflow: "visible",
-          }}>
-            {/* Tab Header */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "#f9fafb",
-              borderBottom: "1px solid #e5e7eb",
-            }}>
-              <span style={{
-                fontSize: "0.875rem",
-                color: "#6b7280",
-                fontWeight: "500",
-              }}>
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "8px",
+              boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
+              overflow: "visible",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0.75rem 1.5rem",
+                backgroundColor: "#f9fafb",
+                borderBottom: "1px solid #e5e7eb",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.875rem",
+                  color: "#6b7280",
+                  fontWeight: "500",
+                }}
+              >
                 Projects ({filteredProjects.length})
               </span>
               <div style={{ position: "relative" }}>
@@ -710,18 +810,20 @@ const ProjectsPage: React.FC = () => {
                   Export <ChevronDown size={14} />
                 </button>
                 {showExportDropdown && (
-                  <div style={{
-                    position: "absolute",
-                    top: "100%",
-                    right: 0,
-                    marginTop: "0.25rem",
-                    backgroundColor: "white",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "4px",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                    zIndex: 10,
-                    minWidth: "120px",
-                  }}>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      right: 0,
+                      marginTop: "0.25rem",
+                      backgroundColor: "white",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                      zIndex: 10,
+                      minWidth: "120px",
+                    }}
+                  >
                     {["PDF", "CSV", "Excel"].map((format) => (
                       <div
                         key={format}
@@ -741,120 +843,153 @@ const ProjectsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Table */}
-            <div style={{ overflow: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+            <div
+              style={{
+                maxHeight: "500px", // Added max-height for scrolling
+                overflowY: "auto", // Changed to overflowY for vertical scrolling
+                overflowX: "auto", // Allow horizontal scrolling if needed
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  tableLayout: "fixed", // Ensure consistent column widths
+                }}
+              >
+                <thead
+                  style={{
+                    position: "sticky", // Make header sticky
+                    top: 0,
+                    backgroundColor: "#f9fafb",
+                    zIndex: 1,
+                  }}
+                >
+                  <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
                     <th style={{ padding: "0.75rem 1.5rem", textAlign: "left", width: "40px" }}>
                       <input type="checkbox" style={{ cursor: "pointer" }} />
                     </th>
-                    <th style={{
-                      padding: "0.75rem 1.5rem",
-                      textAlign: "left",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: "#6b7280",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}>
+                    <th
+                      style={{
+                        padding: "0.75rem 1.5rem",
+                        textAlign: "left",
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                        color: "#6b7280",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
                       NAME ▲
                     </th>
-                    <th style={{
-                      padding: "0.75rem 1.5rem",
-                      textAlign: "left",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: "#6b7280",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}>
+                    <th
+                      style={{
+                        padding: "0.75rem 1.5rem",
+                        textAlign: "left",
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                        color: "#6b7280",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
                       CLIENT
                     </th>
-                    <th style={{
-                      padding: "0.75rem 1.5rem",
-                      textAlign: "left",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: "#6b7280",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}>
+                    <th
+                      style={{
+                        padding: "0.75rem 1.5rem",
+                        textAlign: "left",
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                        color: "#6b7280",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
                       TRACKED
                     </th>
-                    <th style={{
-                      padding: "0.75rem 1.5rem",
-                      textAlign: "left",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: "#6b7280",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}>
+                    <th
+                      style={{
+                        padding: "0.75rem 1.5rem",
+                        textAlign: "left",
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                        color: "#6b7280",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
                       AMOUNT
                     </th>
-                    <th style={{
-                      padding: "0.75rem 1.5rem",
-                      textAlign: "left",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: "#6b7280",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}>
+                    <th
+                      style={{
+                        padding: "0.75rem 1.5rem",
+                        textAlign: "left",
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                        color: "#6b7280",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
                       PROGRESS
                     </th>
-                    <th style={{
-                      padding: "0.75rem 1.5rem",
-                      textAlign: "left",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: "#6b7280",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}>
+                    <th
+                      style={{
+                        padding: "0.75rem 1.5rem",
+                        textAlign: "left",
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                        color: "#6b7280",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
                       ACCESS
                     </th>
                     <th style={{ padding: "0.75rem 1.5rem", width: "80px" }}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProjects.length === 0 ? (
+                  {paginatedProjects.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{
-                        padding: "2rem",
-                        textAlign: "center",
-                        color: "#6b7280",
-                        fontSize: "0.875rem",
-                      }}>
+                      <td
+                        colSpan={8}
+                        style={{
+                          padding: "2rem",
+                          textAlign: "center",
+                          color: "#6b7280",
+                          fontSize: "0.875rem",
+                        }}
+                      >
                         No projects found. Create your first project to get started!
                       </td>
                     </tr>
                   ) : (
-                    filteredProjects.map((project) => (
+                    paginatedProjects.map((project) => (
                       <tr key={project.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
                         <td style={{ padding: "1rem 1.5rem" }}>
                           <input type="checkbox" style={{ cursor: "pointer" }} />
                         </td>
                         <td style={{ padding: "1rem 1.5rem" }}>
-                          <div 
-                            onClick={() => navigate(`/projects/${project.id}`)} 
-                            style={{ 
-                              display: "flex", 
-                              alignItems: "center", 
+                          <div
+                            onClick={() => navigate(`/projects/${project.id}`)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
                               gap: "0.5rem",
-                              cursor: "pointer"
+                              cursor: "pointer",
                             }}
                           >
-                            <span style={{
-                              width: "8px",
-                              height: "8px",
-                              borderRadius: "50%",
-                              backgroundColor: project.color,
-                            }}></span>
-                            <span style={{ fontSize: "0.875rem", color: "#374151" }}>
-                              {project.name}
-                            </span>
+                            <span
+                              style={{
+                                width: "8px",
+                                height: "8px",
+                                borderRadius: "50%",
+                                backgroundColor: project.color,
+                              }}
+                            ></span>
+                            <span style={{ fontSize: "0.875rem", color: "#374151" }}>{project.name}</span>
                           </div>
                         </td>
                         <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#6b7280" }}>
@@ -904,18 +1039,20 @@ const ProjectsPage: React.FC = () => {
                                 <MoreVertical size={18} style={{ color: "#9ca3af" }} />
                               </button>
                               {activeProjectMenu === project.id && (
-                                <div style={{
-                                  position: "fixed",
-                                  transform: "translate(-90%, 0)",
-                                  marginTop: "0.25rem",
-                                  backgroundColor: "white",
-                                  border: "1px solid #e5e7eb",
-                                  borderRadius: "8px",
-                                  boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
-                                  zIndex: 9999,
-                                  minWidth: "180px",
-                                  padding: "0.5rem 0",
-                                }}>
+                                <div
+                                  style={{
+                                    position: "fixed",
+                                    transform: "translate(-90%, 0)",
+                                    marginTop: "0.25rem",
+                                    backgroundColor: "white",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: "8px",
+                                    boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
+                                    zIndex: 9999,
+                                    minWidth: "180px",
+                                    padding: "0.5rem 0",
+                                  }}
+                                >
                                   <div
                                     onClick={() => openEditModal(project)}
                                     style={{
@@ -925,8 +1062,8 @@ const ProjectsPage: React.FC = () => {
                                       color: "#374151",
                                       transition: "background-color 0.15s",
                                     }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f3f4f6"}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
+                                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                                   >
                                     Edit
                                   </div>
@@ -939,8 +1076,8 @@ const ProjectsPage: React.FC = () => {
                                       color: "#374151",
                                       transition: "background-color 0.15s",
                                     }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f3f4f6"}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
+                                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                                   >
                                     Duplicate
                                   </div>
@@ -953,8 +1090,8 @@ const ProjectsPage: React.FC = () => {
                                       color: "#ef4444",
                                       transition: "background-color 0.15s",
                                     }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#fef2f2"}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
+                                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#fef2f2")}
+                                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                                   >
                                     Delete
                                   </div>
@@ -969,45 +1106,132 @@ const ProjectsPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "1rem 1.5rem",
+                borderTop: "1px solid #e5e7eb",
+                flexWrap: "wrap",
+                gap: "1rem",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "0.875rem",
+                  color: "#6b7280",
+                }}
+              >
+                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredProjects.length)} of {filteredProjects.length} projects
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+                    Items per page:
+                  </span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => handleItemsPerPageChange(e.target.value)}
+                    style={{
+                      padding: "0.5rem",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      fontSize: "0.875rem",
+                      backgroundColor: "white",
+                      color: "#374151",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {[5, 10, 20, 50, 100].map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      />
+                    </PaginationItem>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => handlePageChange(page)}
+                          isActive={currentPage === page}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            </div>
           </div>
         </>
       )}
 
-      {/* Create/Edit Project Modal */}
       {showModal && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1000,
-        }}>
-          <div style={{
-            backgroundColor: "white",
-            borderRadius: "8px",
-            width: "90%",
-            maxWidth: "600px",
-            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
-          }}>
-            {/* Modal Header */}
-            <div style={{
-              padding: "1.5rem",
-              borderBottom: "1px solid #e5e7eb",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}>
-              <h2 style={{
-                margin: 0,
-                fontSize: "1.25rem",
-                fontWeight: "500",
-                color: "#6b7280",
-              }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "8px",
+              width: "90%",
+              maxWidth: "600px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+            }}
+          >
+            <div
+              style={{
+                padding: "1.5rem",
+                borderBottom: "1px solid #e5e7eb",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: "1.25rem",
+                  fontWeight: "500",
+                  color: "#6b7280",
+                }}
+              >
                 {isEditMode ? "Edit Project" : "Create new Project"}
               </h2>
               <button
@@ -1024,10 +1248,8 @@ const ProjectsPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div style={{ padding: "1.5rem" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-                {/* Project Name */}
                 <input
                   type="text"
                   placeholder="Enter Project name"
@@ -1042,8 +1264,8 @@ const ProjectsPage: React.FC = () => {
                   }}
                 />
 
-                {/* Client Dropdown */}
                 <select
+                  id="client"
                   value={selectedClient}
                   onChange={(e) => setSelectedClient(e.target.value)}
                   style={{
@@ -1053,17 +1275,20 @@ const ProjectsPage: React.FC = () => {
                     fontSize: "0.875rem",
                     backgroundColor: "white",
                     color: selectedClient ? "#374151" : "#9ca3af",
+                    width: "100%",
                   }}
                 >
                   <option value="">Select client</option>
-                  <option value="Client A">Client A</option>
-                  <option value="Client B">Client B</option>
-                  <option value="Client C">Client C</option>
+                  {Array.isArray(clients) &&
+                    clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name || c.email}
+                      </option>
+                    ))}
                 </select>
               </div>
 
               <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", alignItems: "center" }}>
-                {/* Color Picker */}
                 <div style={{ position: "relative" }}>
                   <button
                     onClick={() => setShowColorPicker(!showColorPicker)}
@@ -1080,18 +1305,20 @@ const ProjectsPage: React.FC = () => {
                     <ChevronDown size={16} style={{ color: "white", position: "absolute", bottom: "2px", right: "2px" }} />
                   </button>
                   {showColorPicker && (
-                    <div style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      marginTop: "0.5rem",
-                      backgroundColor: "white",
-                      border: "1px solid #d1d5db",
-                      borderRadius: "4px",
-                      padding: "0.75rem",
-                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                      zIndex: 10,
-                    }}>
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        marginTop: "0.5rem",
+                        backgroundColor: "white",
+                        border: "1px solid #d1d5db",
+                        borderRadius: "4px",
+                        padding: "0.75rem",
+                        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                        zIndex: 10,
+                      }}
+                    >
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem", marginBottom: "0.5rem" }}>
                         {colors.map((color) => (
                           <button
@@ -1111,13 +1338,15 @@ const ProjectsPage: React.FC = () => {
                           />
                         ))}
                       </div>
-                      <div style={{ 
-                        paddingTop: "0.5rem", 
-                        borderTop: "1px solid #e5e7eb",
-                        display: "flex",
-                        gap: "0.5rem",
-                        alignItems: "center"
-                      }}>
+                      <div
+                        style={{
+                          paddingTop: "0.5rem",
+                          borderTop: "1px solid #e5e7eb",
+                          display: "flex",
+                          gap: "0.5rem",
+                          alignItems: "center",
+                        }}
+                      >
                         <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>Custom</span>
                         <input
                           type="checkbox"
@@ -1141,57 +1370,66 @@ const ProjectsPage: React.FC = () => {
                         </button>
                       </div>
                       {showCustomColorPicker && (
-                        <div style={{
-                          marginTop: "0.75rem",
-                          padding: "0.75rem",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "4px",
-                          backgroundColor: "#f9fafb",
-                        }}>
-                          <div style={{
-                            width: "180px",
-                            height: "180px",
-                            background: `linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,1)),
-                                       linear-gradient(to right, rgba(255,255,255,1), transparent)`,
+                        <div
+                          style={{
+                            marginTop: "0.75rem",
+                            padding: "0.75rem",
+                            border: "1px solid #e5e7eb",
                             borderRadius: "4px",
-                            position: "relative",
-                            marginBottom: "0.75rem",
-                            cursor: "crosshair",
+                            backgroundColor: "#f9fafb",
                           }}
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const x = e.clientX - rect.left;
-                            const y = e.clientY - rect.top;
-                            const lightness = Math.round((1 - y / 180) * 50 + 25);
-                            const saturation = Math.round((x / 180) * 100);
-                            setCustomColor(`hsl(30, ${saturation}%, ${lightness}%)`);
-                          }}
+                        >
+                          <div
+                            style={{
+                              width: "180px",
+                              height: "180px",
+                              background: `linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,1)),
+                                       linear-gradient(to right, rgba(255,255,255,1), transparent)`,
+                              borderRadius: "4px",
+                              position: "relative",
+                              marginBottom: "0.75rem",
+                              cursor: "crosshair",
+                            }}
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const x = e.clientX - rect.left;
+                              const y = e.clientY - rect.top;
+                              const lightness = Math.round((1 - y / 180) * 50 + 25);
+                              const saturation = Math.round((x / 180) * 100);
+                              setCustomColor(`hsl(30, ${saturation}%, ${lightness}%)`);
+                            }}
                           >
-                            <div style={{
-                              width: "12px",
-                              height: "12px",
-                              border: "2px solid white",
-                              borderRadius: "50%",
-                              position: "absolute",
-                              top: "50%",
-                              left: "50%",
-                              transform: "translate(-50%, -50%)",
-                              pointerEvents: "none",
-                            }}></div>
+                            <div
+                              style={{
+                                width: "12px",
+                                height: "12px",
+                                border: "2px solid white",
+                                borderRadius: "50%",
+                                position: "absolute",
+                                top: "50%",
+                                left: "50%",
+                                transform: "translate(-50%, -50%)",
+                                pointerEvents: "none",
+                              }}
+                            ></div>
                           </div>
-                          <div style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            marginBottom: "0.5rem",
-                          }}>
-                            <div style={{
-                              width: "40px",
-                              height: "40px",
-                              backgroundColor: customColor,
-                              border: "1px solid #d1d5db",
-                              borderRadius: "50%",
-                            }}></div>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              marginBottom: "0.5rem",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: "40px",
+                                height: "40px",
+                                backgroundColor: customColor,
+                                border: "1px solid #d1d5db",
+                                borderRadius: "50%",
+                              }}
+                            ></div>
                             <input
                               type="range"
                               min="0"
@@ -1248,15 +1486,16 @@ const ProjectsPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Public Checkbox */}
-                <label style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                  fontSize: "0.875rem",
-                  color: "#374151",
-                }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    color: "#374151",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={isPublic}
@@ -1272,21 +1511,49 @@ const ProjectsPage: React.FC = () => {
                 </label>
               </div>
 
-              {/* Start Date */}
               <div style={{ marginBottom: "1rem" }}>
-                <label style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  color: "#374151",
-                }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.5rem",
+                    fontSize: "0.875rem",
+                    fontWeight: "500",
+                    color: "#374151",
+                  }}
+                >
                   Start Date
                 </label>
                 <input
                   type="date"
-                  value={startDate}
+                  value={startDate || today}
                   onChange={(e) => setStartDate(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    fontSize: "0.875rem",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.5rem",
+                    fontSize: "0.875rem",
+                    fontWeight: "500",
+                    color: "#374151",
+                  }}
+                >
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={endDate || today}
+                  onChange={(e) => setendDate(e.target.value)}
                   style={{
                     width: "100%",
                     padding: "0.75rem",
@@ -1299,14 +1566,15 @@ const ProjectsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div style={{
-              padding: "1.5rem",
-              borderTop: "1px solid #e5e7eb",
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "0.75rem",
-            }}>
+            <div
+              style={{
+                padding: "1.5rem",
+                borderTop: "1px solid #e5e7eb",
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "0.75rem",
+              }}
+            >
               <button
                 onClick={() => setShowModal(false)}
                 style={{

@@ -49,7 +49,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         projectsList.map(async (project) => {
           try {
             // Fetch timesheets for this project
-            const timesheets = await timesheetsAPI.getTimesheetsByProject(project.id);
+            const timesheets = await timesheetsAPI.getTimesheetByProject(project.id);
             console.log(`📊 Timesheets for project "${project.name}" (ID: ${project.id}):`, timesheets);
 
             // Group timesheets by date and sum durations
