@@ -4,6 +4,7 @@ import { X, MoreVertical } from "lucide-react";
 import { calculateDuration } from "../../../utils/timeCalculations";
 import { projectsAPI } from "../../../api/projects.api";
 import type { EventType, Project } from "../../../utils/types";
+import { timesheetsAPI } from "../../../api/timesheet.api";
 
 interface EventModalProps {
   show: boolean;
@@ -16,6 +17,7 @@ interface EventModalProps {
   project: string;
   tags: string;
   billable: boolean;
+  userId: number; // Add userId prop
   onClose: () => void;
   onSave: () => void;
   onDelete: () => void;
@@ -39,6 +41,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   project,
   tags,
   billable,
+  userId,
   onClose,
   onSave,
   onDelete,
@@ -55,6 +58,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [projectList, setProjectList] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setDuration(calculateDuration(startTime, endTime));
@@ -79,6 +83,55 @@ export const EventModal: React.FC<EventModalProps> = ({
   const handleTimeChange = (type: "start" | "end", value: string) => {
     if (type === "start") setStartTime(value);
     else setEndTime(value);
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+
+      // Find the selected project to get its ID
+      const selectedProject = projectList.find(p => p.project_name === project);
+      
+      if (!selectedProject) {
+        console.error("❌ Project not found");
+        alert("Please select a valid project");
+        return;
+      }
+
+      // Combine date with start and end times
+      const dateStr = moment(selectedDate).format("YYYY-MM-DD");
+      const startDateTime = moment(`${dateStr} ${startTime}`, "YYYY-MM-DD HH:mm").toISOString();
+      const endDateTime = moment(`${dateStr} ${endTime}`, "YYYY-MM-DD HH:mm").toISOString();
+
+      // Prepare the timesheet entry payload
+      const timesheetPayload = {
+        projectId: selectedProject.id,
+        userId: userId,
+        description: description,
+        status: "PENDING",
+        start_date: startDateTime,
+        end_date: endDateTime
+      };
+
+      // Create the timesheet entry
+      if (isEditMode) {
+        // If editing, you might want to use an update endpoint
+        // await timesheetsAPI.updateTimesheet(editingEvent.id, timesheetPayload);
+        console.log("Update payload:", timesheetPayload);
+      } else {
+        // Create new timesheet entry
+        await timesheetsAPI.createTimesheet(timesheetPayload);
+        console.log("✅ Timesheet entry created:", timesheetPayload);
+      }
+
+      // Call the original onSave callback
+      onSave();
+    } catch (err) {
+      console.error("❌ Failed to save timesheet entry:", err);
+      alert("Failed to save timesheet entry. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!show) return null;
@@ -240,15 +293,16 @@ export const EventModal: React.FC<EventModalProps> = ({
             <button
               onClick={onClose}
               className="px-6 py-2 text-sm text-gray-600 hover:text-gray-800"
+              disabled={saving}
             >
               Cancel
             </button>
             <button
-              onClick={onSave}
-              disabled={!description || !project}
+              onClick={handleSave}
+              disabled={!description || !project || saving}
               className="px-6 py-2 text-sm bg-cyan-400 text-white rounded hover:bg-cyan-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
-              {isEditMode ? "SAVE" : "ADD"}
+              {saving ? "SAVING..." : isEditMode ? "SAVE" : "ADD"}
             </button>
           </div>
         </div>
