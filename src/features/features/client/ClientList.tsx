@@ -1,6 +1,6 @@
 import { MoreVertical, Trash2, X } from "lucide-react";
 import React, { useState, useRef, useEffect } from "react";
-import { usersAPI } from "../../../api/client.api";
+import { clientsAPI } from "../../../api/client.api";
 import type { Client } from "../../../utils/types";
 
 const ClientList: React.FC = () => {
@@ -26,7 +26,7 @@ const ClientList: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await usersAPI.getClients();
+      const response = await clientsAPI.getClients();
       console.log("API Response:", response); // Debug log
       
       // Handle different response formats

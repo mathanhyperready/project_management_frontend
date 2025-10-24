@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Star, MoreVertical, Plus, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { usersAPI } from "../../../api/client.api";
+import { clientsAPI } from "../../../api/client.api";
 import type { Client, PaginatedResponse, PaginationParams, Role } from "../../../utils/types";
 import { projectsAPI } from "../../../api/projects.api"
 import { useParams } from "react-router-dom";
+import { usersAPI } from "../../../api/users.api";
 
+// import { usersAPI } from "../../../api/users.api";
 interface TimeEntry {
   id: number;
   name: string;
@@ -45,11 +47,13 @@ const ProjectDetail: React.FC = () => {
   const [clientsError, setClientsError] = useState<string | null>(null);
 
   const [projectDatas, setprojectDatas] = useState<any | null>([])
+  const [endDate, setEndDate] = useState("");
+
 
 
   // Stats
   const [totalTracked, settotalTracked] = useState("");
-  const [billableTime] = useState("3.01h");
+  const [billableTime, setbillableTime] = useState("");
   const [nonBillableTime] = useState("0.00h");
   const [totalAmount] = useState("0.00 USD");
 
@@ -67,10 +71,12 @@ const ProjectDetail: React.FC = () => {
             0
           );
           settotalTracked(total)
+          setbillableTime(total);
         }
 
         setprojectDatas(response)
         setProjectName(response.project_name)
+
 
         // setRoles(Array.isArray(response) ? response : []);
       } catch (err) {
@@ -85,6 +91,27 @@ const ProjectDetail: React.FC = () => {
   }, []);
 
 
+
+ useEffect(() => {
+  const fetchProject = async () => {
+    if (!id) return;
+    try {
+      const res = await projectsAPI.getProjectById(id);
+      const project = res.data || res;
+
+      setProjectName(project.project_name || "");
+      setStartDate(project.start_date ? project.start_date.split("T")[0] : "");
+      setEndDate(project.end_date ? project.end_date.split("T")[0] : "");
+      setClient(project.client_id ? String(project.client_id) : "");
+      
+      console.log("Fetched project client_id:", project.client_id);
+    } catch (error) {
+      console.error("Error fetching project:", error);
+    }
+  };
+
+  fetchProject();
+}, [id]);
 
   // Team members
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
@@ -105,7 +132,7 @@ const ProjectDetail: React.FC = () => {
       setLoadingClients(true);
       setClientsError(null);
 
-      const response = await usersAPI.getClients();
+      const response = await clientsAPI.getClients();
       let clientList: Client[] = [];
 
       if (Array.isArray(response)) {
@@ -153,14 +180,40 @@ const ProjectDetail: React.FC = () => {
   const today = new Date().toISOString().split("T")[0];
 
 
-  const handleSaveSettings = async () => {
+ const handleSaveSettings = async () => {
     try {
-      // Here you would typically call an API to save project settings
-      // Example: await projectAPI.updateProject(projectId, { projectName, client, ... });
-      alert("Settings saved successfully!");
+      if (!id) {
+        alert("Project ID is missing");
+        return;
+      }
+
+      // Prepare the data in the correct format
+      const updateData: any = {
+        project_name: projectName,
+        start_date: startDate ? new Date(startDate).toISOString() : undefined,
+        end_date: endDate ? new Date(endDate).toISOString() : undefined,
+      };
+
+      // Only include client_id if a client is selected
+      if (client && client !== "") {
+        updateData.client_id = Number(client);
+      }
+
+      // Remove undefined values
+      Object.keys(updateData).forEach(key => 
+        updateData[key] === undefined && delete updateData[key]
+      );
+
+      console.log("Sending update data:", updateData);
+      
+      await projectsAPI.updateProject(id, updateData);
+alert("Settings saved successfully!");
+if (updateData.client_id) setClient(String(updateData.client_id));
+
+      // alert("Settings saved successfully!");
     } catch (error) {
       console.error("Error saving settings:", error);
-      alert("Failed to save settings");
+      alert("Failed to save settings. Please try again.");
     }
   };
 
@@ -423,255 +476,142 @@ const ProjectDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Settings Tab */}
-      {activeTab === "settings" && (
-        <div style={{
-          backgroundColor: "white",
-          borderRadius: "8px",
-          padding: "2rem",
-          boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)",
-        }}>
-          <h3 style={{
-            fontSize: "1.125rem",
-            fontWeight: "500",
-            color: "#374151",
-            marginBottom: "1.5rem",
-          }}>
-            Project Settings
-          </h3>
-
-          <div style={{ maxWidth: "600px" }}>
-            {/* Project Name */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#374151",
-                marginBottom: "0.5rem",
-              }}>
-                Project Name
-              </label>
-              <input
-                type="text"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
-                  fontSize: "0.875rem",
-                }}
-              />
-            </div>
-
-            {/* Client */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#374151",
-                marginBottom: "0.5rem",
-              }}>
-                Client
-              </label>
-              {loadingClients ? (
-                <div style={{
-                  padding: "0.75rem",
-                  fontSize: "0.875rem",
-                  color: "#6b7280",
-                }}>
-                  Loading clients...
-                </div>
-              ) : clientsError ? (
-                <div style={{
-                  padding: "0.75rem",
-                  fontSize: "0.875rem",
-                  color: "#ef4444",
-                }}>
-                  {clientsError}
-                </div>
-              ) : (
-                <select
-                  value={client}
-                  onChange={(e) => setClient(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "4px",
-                    fontSize: "0.875rem",
-                    backgroundColor: "white",
-                  }}
-                >
-                  <option value="">Select client</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name || c.email}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            {/* Color */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#374151",
-                marginBottom: "0.5rem",
-              }}>
-                Color
-              </label>
-              <input
-                type="color"
-                value={projectColor}
-                onChange={(e) => setProjectColor(e.target.value)}
-                style={{
-                  width: "60px",
-                  height: "40px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              />
-            </div>
-
-            {/* Billable */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                cursor: "pointer",
-              }}>
-                <input
-                  type="checkbox"
-                  checked={isBillable}
-                  onChange={(e) => setIsBillable(e.target.checked)}
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    cursor: "pointer",
-                    accentColor: "#22d3ee",
-                  }}
-                />
-                <span style={{
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  color: "#374151",
-                }}>
-                  Billable
-                </span>
-              </label>
-            </div>
-
-            {/* Non-Billable */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                cursor: "pointer",
-              }}>
-                <input
-                  type="checkbox"
-                  checked={isNonBillable}
-                  onChange={(e) => setIsNonBillable(e.target.checked)}
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    cursor: "pointer",
-                    accentColor: "#22d3ee",
-                  }}
-                />
-                <span style={{
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  color: "#374151",
-                }}>
-                  Non-Billable
-                </span>
-              </label>
-            </div>
-
-            {/* Start Date */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#374151",
-                marginBottom: "0.5rem",
-              }}>
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={startDate || today}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
-                  fontSize: "0.875rem",
-                  outline: "none",
-                }}
-              />
-
-            </div>
-
-            {/* Rate */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{
-                display: "block",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                color: "#374151",
-                marginBottom: "0.5rem",
-              }}>
-                Hourly Rate (USD)
-              </label>
-              <input
-                type="number"
-                value={rate}
-                onChange={(e) => setRate(e.target.value)}
-                step="0.01"
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "4px",
-                  fontSize: "0.875rem",
-                }}
-              />
-            </div>
-
-            {/* Save Button */}
-            <button
-              onClick={handleSaveSettings}
-              style={{
-                padding: "0.75rem 2rem",
-                backgroundColor: "#22d3ee",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                fontSize: "0.875rem",
-                fontWeight: "600",
-                cursor: "pointer",
-                textTransform: "uppercase",
-              }}
-            >
-              SAVE SETTINGS
-            </button>
-          </div>
+{/* Settings Tab */}
+{activeTab === "settings" && (
+  <div className="">
+    <h3 className="text-lg font-medium text-gray-700 mb-6">
+      Project Settings
+    </h3>
+    <div className="h-[calc(100vh-150px)] overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Project Name */}
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-2">
+            Project Name
+          </label>
+          <input
+            type="text"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-cyan-400 outline-none"
+          />
         </div>
-      )}
+
+        {/* Client */}
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-2">
+            Client
+          </label>
+          {loadingClients ? (
+            <div className="p-3 text-sm text-gray-500">Loading clients...</div>
+          ) : clientsError ? (
+            <div className="p-3 text-sm text-red-500">{clientsError}</div>
+          ) : (
+            <select
+              value={client}
+              onChange={(e) => setClient(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded text-sm bg-white"
+            >
+              <option value="">Select client</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name || c.email}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Color */}
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-2">
+            Color
+          </label>
+          <input
+            type="color"
+            value={projectColor}
+            onChange={(e) => setProjectColor(e.target.value)}
+            className="w-16 h-10 border border-gray-300 rounded cursor-pointer"
+          />
+        </div>
+
+        {/* Hourly Rate */}
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-2">
+            Hourly Rate (USD)
+          </label>
+          <input
+            type="number"
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+            step="0.01"
+            className="w-full p-3 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-cyan-400 outline-none"
+          />
+        </div>
+
+        {/* Start Date */}
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-2">
+            Start Date
+          </label>
+          <input
+            type="date"
+            value={startDate || today}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-cyan-400 outline-none"
+          />
+        </div>
+
+        {/* End Date */}
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-2">
+            End Date
+          </label>
+          <input
+            type="date"
+            value={endDate || today}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-cyan-400 outline-none"
+          />
+        </div>
+
+        {/* Billable */}
+        <div className="flex items-center gap-2 mt-2">
+          <input
+            type="checkbox"
+            checked={isBillable}
+            onChange={(e) => setIsBillable(e.target.checked)}
+            className="w-4 h-4 text-cyan-400 cursor-pointer"
+          />
+          <span className="text-sm font-medium text-gray-700">Billable</span>
+        </div>
+
+        {/* Non-Billable */}
+        <div className="flex items-center gap-2 mt-2">
+          <input
+            type="checkbox"
+            checked={isNonBillable}
+            onChange={(e) => setIsNonBillable(e.target.checked)}
+            className="w-4 h-4 text-cyan-400 cursor-pointer"
+          />
+          <span className="text-sm font-medium text-gray-700">Non-Billable</span>
+        </div>
+
+        {/* Save Button - Full width */}
+        <div className="md:col-span-2">
+          <button
+            type="button"
+            onClick={handleSaveSettings}
+            className="w-half py-3 px-6 bg-cyan-400 text-white font-semibold rounded uppercase text-sm hover:bg-cyan-500 transition-colors"
+          >
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
 
       {/* Access Tab */}
       {activeTab === "access" && (
@@ -926,6 +866,7 @@ const ProjectDetail: React.FC = () => {
       )}
     </div>
   );
+  
 };
 
 export default ProjectDetail;
