@@ -2,7 +2,7 @@ import api from './axios';
 import type { Client, PaginatedResponse, PaginationParams } from '../utils/types';
 import { API_ENDPOINTS } from '../services/endpoint';
 
-export const usersAPI = {
+export const clientsAPI = {
   getClients: async (params?: PaginationParams): Promise<PaginatedResponse<Client>> => {
     const response = await api.get<PaginatedResponse<Client>>(API_ENDPOINTS.CLIENTS.GET_ALL, { params });
     return response.data;

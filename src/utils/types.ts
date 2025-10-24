@@ -56,8 +56,23 @@ export interface Client {
 }
 
 export interface TimeEntry {
-  [key: string]: string; // date as key, time as value (HH:MM:SS)
+  [key: string]: string;
 
+}
+
+export interface TimesheetEntry{
+  id: number;
+  description : string;
+  start_date: string;
+  end_date: string;
+  duration: number;
+  status: string;
+  projectId: number;
+  userId: number;
+  created_by: string;
+  project: string;
+  user: string;
+  creator: string;
 }
 
 
@@ -145,6 +160,16 @@ export interface TaskFilters {
   dueDate?: string;
   search?: string;
 }
+
+export interface TimesheetFilters {
+  status?: string;
+  projectId?: string;
+  assignedTo?: string;
+  priority?: string;
+  dueDate?: string;
+  search?: string;
+}
+
 export interface EventType {
   id: number;
   title: string;
