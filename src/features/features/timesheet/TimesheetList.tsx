@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Copy, Save, List } from "lucide-react";
+import { ChevronLeft, ChevronRight, List } from "lucide-react";
 import { useAppContext } from "../../../contexts/AppContext";
 import type { Project } from "../../../utils/types";
 import {
@@ -10,7 +10,15 @@ import {
   formatTime,
 } from "../../../utils/timeCalculations";
 import { timesheetsAPI } from "../../../api/timesheet.api";
- 
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // Type for API response
 interface TimeEntry {
@@ -34,8 +42,18 @@ export const Timesheet: React.FC = () => {
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [projectsPerPage, setProjectsPerPage] = useState(8); // Changed to 8 projects per page
 
   const weekDates = getWeekDates(currentWeekStart);
+
+  // Calculate pagination
+  const indexOfLastProject = currentPage * projectsPerPage;
+  const indexOfFirstProject = indexOfLastProject - projectsPerPage;
+  const currentProjects = projects.slice(indexOfFirstProject, indexOfLastProject);
+  const totalPages = Math.ceil(projects.length / projectsPerPage);
 
   // Fetch time entries for all projects
   useEffect(() => {
@@ -46,7 +64,6 @@ export const Timesheet: React.FC = () => {
       setError(null);
       
       try {
-        // Fetch time entries for all projects
         const allEntries: TimeEntry[] = [];
         
         for (const project of projects) {
@@ -72,6 +89,11 @@ export const Timesheet: React.FC = () => {
     fetchTimeEntries();
   }, [projects]);
 
+  // Reset to first page when projects change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [projects.length]);
+
   // Convert duration (hours) to HH:MM:SS format
   const durationToTimeString = (duration: number): string => {
     const hours = Math.floor(duration);
@@ -85,19 +107,15 @@ export const Timesheet: React.FC = () => {
   const getTimeEntryForDate = (projectId: number, date: Date): string => {
     const dateKey = formatDate(date);
     
-    // Filter entries for this project and date
     const entriesForDate = timeEntries.filter(entry => {
       const entryDate = formatDate(new Date(entry.start_date));
       return entry.projectId === projectId && entryDate === dateKey;
     });
 
-    // Sum up all durations for this date (duration is in hours)
     const totalHours = entriesForDate.reduce((sum, entry) => {
-      // Duration is already in hours from the API
       return sum + (entry.duration || 0);
     }, 0);
     
-    // Convert total hours to HH:MM:SS format
     return totalHours > 0 ? durationToTimeString(totalHours) : "";
   };
 
@@ -131,11 +149,11 @@ export const Timesheet: React.FC = () => {
     return formatTime(total);
   };
 
-  // Calculate column total for a date
+  // Calculate column total for a date (for current page only)
   const getColumnTotal = (date: Date): string => {
     let total = 0;
     
-    projects.forEach(project => {
+    currentProjects.forEach(project => {
       const timeStr = getTimeEntryForDate(project.id, date);
       if (timeStr) {
         total += parseTime(timeStr);
@@ -145,11 +163,11 @@ export const Timesheet: React.FC = () => {
     return formatTime(total);
   };
 
-  // Calculate grand total
+  // Calculate grand total (for current page only)
   const getGrandTotal = (): string => {
     let total = 0;
     
-    projects.forEach(project => {
+    currentProjects.forEach(project => {
       weekDates.forEach(date => {
         const timeStr = getTimeEntryForDate(project.id, date);
         if (timeStr) {
@@ -161,11 +179,47 @@ export const Timesheet: React.FC = () => {
     return formatTime(total);
   };
 
+  // Generate page numbers for shadcn pagination
+  const getPaginationItems = () => {
+    const items = [];
+    const maxVisible = 5;
+    
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        items.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 3; i++) {
+          items.push(i);
+        }
+        items.push('ellipsis');
+        items.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        items.push(1);
+        items.push('ellipsis');
+        for (let i = totalPages - 2; i <= totalPages; i++) {
+          items.push(i);
+        }
+      } else {
+        items.push(1);
+        items.push('ellipsis');
+        items.push(currentPage - 1);
+        items.push(currentPage);
+        items.push(currentPage + 1);
+        items.push('ellipsis');
+        items.push(totalPages);
+      }
+    }
+    
+    return items;
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-[1600px] mx-auto bg-white rounded-lg shadow-sm">
+    <div className="bg-gray-50 p-6">
+      <div className="max-w-[1600px] mx-auto bg-white rounded-lg shadow-sm flex flex-col" style={{ height: 'calc(100vh - 3rem)' }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
           <h1 className="text-2xl font-semibold text-gray-800">Timesheet</h1>
           
           <div className="flex items-center gap-3">
@@ -211,7 +265,7 @@ export const Timesheet: React.FC = () => {
 
         {/* Timesheet Table */}
         {!loading && (
-          <div className="overflow-x-auto">
+          <div className="flex-1 overflow-auto" style={{ maxHeight: 'calc(100% - 12rem)' }}> {/* Adjusted maxHeight to ensure scrolling */}
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
@@ -232,7 +286,7 @@ export const Timesheet: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {projects.map((project) => (
+                {currentProjects.map((project) => (
                   <tr key={project.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -285,17 +339,83 @@ export const Timesheet: React.FC = () => {
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3 p-6 border-t">
-          <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded hover:bg-gray-50">
-            <Copy size={16} />
-            Copy last week
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded hover:bg-gray-50">
-            <Save size={16} />
-            Save as template
-          </button>
-        </div>
+        {/* Pagination Controls with shadcn - At the Bottom */}
+        {!loading && projects.length > 0 && (
+          <div className="p-6 border-t flex-shrink-0">
+            <div className="max-w-7xl mx-auto">
+              <div className="flex justify-between items-center gap-4">
+                {/* Showing X to Y and Dropdown - Left Side */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Showing {indexOfFirstProject + 1} to {Math.min(indexOfLastProject, projects.length)} of {projects.length} projects</span>
+                  <span className="text-sm text-gray-600">Items per page:</span>
+                  <select
+                    value={projectsPerPage}
+                    onChange={(e) => {
+                      setProjectsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={5}>5</option>
+                    <option value={8}>8</option> {/* Added 8 as an option */}
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+
+                {/* Page Navigation (Previous, Page Numbers, Next) - Right Side */}
+               <div className="flex items-center gap-2">
+  <PaginationItem>
+    <PaginationPrevious
+      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+      className={`cursor-pointer rounded-md ${
+        currentPage === 1 ? "pointer-events-none opacity-50" : "hover:bg-gray-100"
+      }`}
+    >
+      <span className="text-sm">Previous</span>
+    </PaginationPrevious>
+  </PaginationItem>
+
+  {getPaginationItems().map((item, index) => (
+    <PaginationItem key={index}>
+      {item === "ellipsis" ? (
+        // Remove or replace ellipsis here
+        <span className="w-4" />  // keeps spacing consistent without showing dots
+      ) : (
+        <PaginationLink
+          onClick={() => setCurrentPage(item as number)}
+          isActive={currentPage === item}
+          className={`cursor-pointer rounded-md px-3 py-1 text-sm ${
+            currentPage === item
+              ? "bg-blue-500 text-white"
+              : "hover:bg-gray-100"
+          }`}
+        >
+          {item}
+        </PaginationLink>
+      )}
+    </PaginationItem>
+  ))}
+
+  <PaginationItem>
+    <PaginationNext
+      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+      className={`cursor-pointer rounded-md ${
+        currentPage === totalPages
+          ? "pointer-events-none opacity-50"
+          : "hover:bg-gray-100"
+      }`}
+    >
+      <span className="text-sm">Next</span>
+    </PaginationNext>
+  </PaginationItem>
+</div>
+
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
