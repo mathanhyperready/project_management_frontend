@@ -32,7 +32,7 @@ export const API_ENDPOINTS = {
         DELETE : '/projects/{project_id}'
     },
     TIMESHEET : {
-        GET_ALL: '/timesheet/project/{timesheet_id}',
+        GET_ALL: '/timesheet/project/{project_id}',
         CREATE: '/timesheet',
         GET_SINGLE : '/timesheet/{timesheet_id}',
         UPDATE : '/timesheet/{timesheet_id}',

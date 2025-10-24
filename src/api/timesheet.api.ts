@@ -8,13 +8,12 @@ import type {
 import { API_ENDPOINTS } from '../services/endpoint';
 
 export const timesheetsAPI = {
-  getTimesheet: async (
+  getTimesheetByProject: async (
+    projectId: string,
     params?: PaginationParams & TimesheetFilters
   ): Promise<PaginatedResponse<TimesheetEntry>> => {
-    const response = await api.get<PaginatedResponse<TimesheetEntry>>(
-      API_ENDPOINTS.TIMESHEET.GET_ALL,
-      { params }
-    );
+    const url = API_ENDPOINTS.TIMESHEET.GET_ALL.replace('{project_id}', projectId);
+    const response = await api.get<PaginatedResponse<TimesheetEntry>>(url, { params });
     return response.data;
   },
 

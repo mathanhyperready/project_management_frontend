@@ -77,6 +77,7 @@ export interface TimesheetEntry{
 
 
 export interface Project {
+  project_name: string | number | readonly string[] | undefined;
   id: number;
   name: string;
   is_enabled : boolean;
