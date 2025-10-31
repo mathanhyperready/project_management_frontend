@@ -21,6 +21,7 @@ const navigation = [
   { name: 'Role', href: '/role', icon: UserCog },
   { name: 'Client', href: '/client', icon: Building2 },
   { name: 'Report', href: '/report', icon: BiSolidReport },
+  { name: 'Role Permission', href: '/rolepermission', icon: UserCog },
 ];
 
 // const navigation = [

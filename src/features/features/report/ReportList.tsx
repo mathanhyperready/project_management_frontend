@@ -22,7 +22,13 @@ interface Project {
   status?: string;
   timeEntries: { [key: string]: string };
 }
+export interface Role {
+  id: number;
+  name: string;
+  is_enabled: boolean;
+  created_at: string;
 
+}
 // ============= REPORT ENTRY TYPE =============
 interface ReportEntry {
   id: string;
