@@ -2,8 +2,10 @@ import { MoreVertical, Plus, Trash2, X } from "lucide-react";
 import React, { useState, useEffect, useRef } from "react";
 import { rolesAPI } from '../../../api/roles.api';
 import type { Role, PaginationParams } from "../../../utils/types";
+import { useNavigate } from "react-router-dom";
 
 const RoleList: React.FC = () => {
+  const navigate = useNavigate();
   const [roles, setRoles] = useState<Role[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [roleName, setRoleName] = useState("");
@@ -251,7 +253,8 @@ const RoleList: React.FC = () => {
                     <td style={{ padding: "1rem 1.5rem" }}>
                       <input type="checkbox" style={{ cursor: "pointer" }} />
                     </td>
-                    <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
+                    <td style={{ padding: "1rem 1.5rem", color: "#374151" }}
+                     onClick={() => navigate(`/role/${role.id}`)}>
                       {role.name}
                     </td>
                     <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>

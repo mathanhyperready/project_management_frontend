@@ -19,6 +19,8 @@ const ReportPage = React.lazy(() => import('../features/features/report/ReportLi
 // Calendar and Timesheet - USE YOUR EXISTING PATHS
 const CalendarView = React.lazy(() => import('../features/features/calendar/calender'));
 const Timesheet = React.lazy(() => import('../features/features/timesheet/TimesheetList'));
+const RolePermission = React.lazy(() => import('../features/features/rolepermission/RolePermission'));
+const RoleForm = React.lazy(() => import('../features/features/role/RoleForm'));
 
 export const AppRoutes: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -59,6 +61,7 @@ export const AppRoutes: React.FC = () => {
             <ProjectDetailPage />
           </ProtectedRoute>
         } />
+        
         <Route path="/report" element={
           <ProtectedRoute>
           <AppProvider ><ReportPage /></AppProvider>
@@ -88,6 +91,11 @@ export const AppRoutes: React.FC = () => {
             <RoleList />
           </ProtectedRoute>
         } />
+        <Route path="/role/:id" element={
+          <ProtectedRoute>
+            <RoleForm />
+          </ProtectedRoute>
+        } />
         <Route path="/user" element={
           <ProtectedRoute>
             <UserList />
@@ -96,6 +104,11 @@ export const AppRoutes: React.FC = () => {
         <Route path="/client" element={
           <ProtectedRoute>
             <ClientList />
+          </ProtectedRoute>
+        } />
+        <Route path="/rolepermission" element={
+          <ProtectedRoute>
+            <RolePermission />
           </ProtectedRoute>
         } />
 
