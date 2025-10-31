@@ -102,13 +102,13 @@ export const Sidebar: React.FC = () => {
             <div className="flex-shrink-0">
               <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
                 <span className="text-primary-600 font-medium">
-                  {u_name?.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
+                  {u_name?.user_name?.split(' ').map(n => n[0]).join('').toUpperCase()}
                 </span>
               </div>
             </div>
             <div className="ml-3 flex-1">
               <p className="text-sm font-medium text-gray-700">{u_name?.email}</p>
-              <p className="text-xs font-medium text-gray-500 capitalize">{u_name?.role}</p>
+              <p className="text-xs font-medium text-gray-500 capitalize">{u_name?.rolename}</p>
             </div>
           </div>
         </div>

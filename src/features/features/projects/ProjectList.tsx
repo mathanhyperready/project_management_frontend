@@ -19,8 +19,8 @@ interface Project {
   name: string;
   client: string;
   tracked: string;
-  amount: string;
-  progress: string;
+  // amount: string;
+  status: string;
   access: string;
   billable: boolean;
   active: boolean;
@@ -149,8 +149,8 @@ const ProjectsPage: React.FC = () => {
       name: backendProject.project_name,
       client: backendProject.client?.name || "",
       tracked: `${totalTracked.toFixed(2)}h`,
-      amount: "0.00 USD",
-      progress: "-",
+      // amount: "0.00 USD",
+      status: backendProject.status || "-",
       access: "Public",
       billable: true,
       active: backendProject.status === "IN_PROGRESS" || backendProject.status === "PLANNED",
@@ -908,7 +908,7 @@ const ProjectsPage: React.FC = () => {
                     >
                       TRACKED
                     </th>
-                    <th
+                    {/* <th
                       style={{
                         padding: "0.75rem 1.5rem",
                         textAlign: "left",
@@ -920,7 +920,7 @@ const ProjectsPage: React.FC = () => {
                       }}
                     >
                       AMOUNT
-                    </th>
+                    </th> */}
                     <th
                       style={{
                         padding: "0.75rem 1.5rem",
@@ -932,7 +932,7 @@ const ProjectsPage: React.FC = () => {
                         letterSpacing: "0.5px",
                       }}
                     >
-                      PROGRESS
+                      STATUS
                     </th>
                     <th
                       style={{
@@ -998,11 +998,11 @@ const ProjectsPage: React.FC = () => {
                         <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#374151" }}>
                           {project.tracked}
                         </td>
-                        <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#374151" }}>
+                        {/* <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#374151" }}>
                           {project.amount}
-                        </td>
+                        </td> */}
                         <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#6b7280" }}>
-                          {project.progress}
+                          {project.status}
                         </td>
                         <td style={{ padding: "1rem 1.5rem", fontSize: "0.875rem", color: "#374151" }}>
                           {project.access}

@@ -37,6 +37,7 @@ const ProjectDetail: React.FC = () => {
   const [projectName, setProjectName] = useState("");
   const [client, setClient] = useState("");
   const [projectColor, setProjectColor] = useState("#84cc16");
+  const [status, setStatus] = useState("IN_PROGRESS"); // ADD THIS LINE
   const [isBillable, setIsBillable] = useState(true);
   const [isNonBillable, setIsNonBillable] = useState(false);
   const [startDate, setStartDate] = useState("2025-10-01");
@@ -188,8 +189,9 @@ const ProjectDetail: React.FC = () => {
         setEndDate(project.end_date ? project.end_date.split("T")[0] : "");
         setClient(project.client_id ? String(project.client_id) : "");
         setProjectColor(project.color || "#84cc16");
-        setRate(project.hourly_rate ? String(project.hourly_rate) : "0.00");
+        // setRate(project.hourly_rate ? String(project.hourly_rate) : "0.00");
         setVisibility(project.visibility || "public");
+        setStatus(project.status || "IN_PROGRESS"); // ADD THIS LINE
         
         // Load team members from backend
         if (project.teamMembers && Array.isArray(project.teamMembers)) {
@@ -244,7 +246,7 @@ const ProjectDetail: React.FC = () => {
     setTeamMembers(teamMembers.filter((m) => m.id !== id));
   };
 
-  // UPDATED: Save all settings with proper team members format
+  // UPDATED: Save all settings with proper team members format and status
   const handleSaveSettings = async () => {
     try {
       if (!id) {
@@ -255,13 +257,14 @@ const ProjectDetail: React.FC = () => {
       // Prepare update data with all fields
       const updateData: any = {
         project_name: projectName,
+        status: status, // ADD THIS LINE
         start_date: startDate ? new Date(startDate).toISOString() : undefined,
         end_date: endDate ? new Date(endDate).toISOString() : undefined,
       };
 
       // Add optional fields only if they have values
       if (projectColor) updateData.color = projectColor;
-      if (rate) updateData.hourly_rate = parseFloat(rate);
+      // if (rate) updateData.hourly_rate = parseFloat(rate);
       if (visibility) updateData.visibility = visibility;
 
       // Add client if selected
@@ -357,16 +360,35 @@ const ProjectDetail: React.FC = () => {
       {/* Status Tab */}
       {activeTab === "status" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left Card */}
           <div className="bg-white rounded-lg p-6 shadow-sm">
+            {/* STATUS FIELD */}
+            <div className="mb-6">
+              <label className="block text-xs text-gray-500 uppercase mb-2 tracking-wide">
+                STATUS
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-lime-500"
+              >
+                <option value="PLANNED">Planned</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="ON_HOLD">On Hold</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+
+            {/* TRACKED TIME */}
             <div className="mb-6">
               <div className="text-xs text-gray-500 uppercase tracking-wide mb-2">
                 TRACKED
               </div>
-              <div className="text-2xl font-normal text-gray-800">
-                {totalTracked}
-              </div>
+              <div className="text-2xl font-normal text-gray-800">{totalTracked}</div>
             </div>
 
+            {/* BILLABLE / NON-BILLABLE */}
             <div className="flex justify-between pt-4 border-t border-gray-200">
               <div>
                 <div className="text-xs text-gray-500 uppercase mb-1">BILLABLE</div>
@@ -377,17 +399,26 @@ const ProjectDetail: React.FC = () => {
                 <div className="text-base text-gray-800">{nonBillableTime}</div>
               </div>
             </div>
-
-            {/* <div className="mt-6 pt-4 border-t border-gray-200">
-              <div className="text-xs text-gray-500 uppercase mb-1">AMOUNT</div>
-              <div className="text-base text-gray-800">{totalAmount}</div>
-            </div> */}
           </div>
 
+          {/* Right Circular Chart */}
           <div className="bg-white rounded-lg p-6 shadow-sm flex flex-col items-center justify-center">
             <svg width="280" height="280" viewBox="0 0 280 280">
-              <circle cx="140" cy="140" r="100" fill="none" stroke="#84cc16" strokeWidth="60" />
-              <text x="140" y="150" textAnchor="middle" fontSize="24" fill="#374151">
+              <circle
+                cx="140"
+                cy="140"
+                r="100"
+                fill="none"
+                stroke="#84cc16"
+                strokeWidth="60"
+              />
+              <text
+                x="140"
+                y="150"
+                textAnchor="middle"
+                fontSize="24"
+                fill="#374151"
+              >
                 {totalTracked}
               </text>
             </svg>
@@ -454,7 +485,7 @@ const ProjectDetail: React.FC = () => {
             </div>
 
             {/* Hourly Rate */}
-            <div className="flex flex-col">
+            {/* <div className="flex flex-col">
               <label className="text-sm font-medium text-gray-700 mb-2">
                 Hourly Rate (USD)
               </label>
@@ -465,7 +496,7 @@ const ProjectDetail: React.FC = () => {
                 step="0.01"
                 className="w-full p-3 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-cyan-400 outline-none"
               />
-            </div>
+            </div> */}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>

@@ -9,6 +9,12 @@ export interface User {
   is_active: boolean;
   role_id : number;
   created_at: string;
+  role: {
+      id: number;
+      name: string;
+      is_enabled: boolean;
+      created_at: string;
+    };
 }
 
 export interface Role {
@@ -123,7 +129,7 @@ export interface SignupInput {
 }
 
 export interface AuthResponse {
-  token: string;
+  access_token: string;
   user: User;
 }
 

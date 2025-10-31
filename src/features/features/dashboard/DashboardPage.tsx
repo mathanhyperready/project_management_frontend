@@ -224,43 +224,62 @@ const DashboardPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               {projects.length > 0 ? (
-                <div className="space-y-0">
-                  {projects.slice(0, 5).map((project) => {
-                    const totalHours = Object.values(project.timeEntries).reduce((acc, time) => {
-                      const [h, m] = time.split(':').map(Number);
-                      return acc + h + (m / 60);
-                    }, 0);
-                    
-                    return (
-                      <div 
-                        key={project.id} 
-                        className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0"
-                      >
-                        <div className="flex items-center flex-1">
-                          <div 
-                            className="w-3 h-3 rounded-full mr-3" 
-                            style={{ backgroundColor: project.color }}
-                          ></div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900">{project.name}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {totalHours.toFixed(1)} hours logged
-                            </p>
-                          </div>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          project.status === 'active' 
-                            ? 'bg-green-100 text-green-700' 
-                            : project.status === 'completed'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {project.status}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+               <div className="space-y-0">
+  {projects.slice(0, 5).map((project) => {
+    console.log("projecttttttttt", project.timeEntries);
+
+    // Safely calculate total minutes
+    const totalMinutes = Object.values(project.timeEntries || {}).reduce((acc, time) => {
+      if (typeof time !== "string" || !time.includes(":")) return acc;
+
+      const [h, m, s] = time.split(":").map(Number);
+      if (isNaN(h) || isNaN(m)) return acc;
+
+      const minutes = (h * 60) + m + ((s || 0) / 60);
+      return acc + minutes;
+    }, 0);
+
+    // Convert total minutes to hours + minutes
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = Math.round(totalMinutes % 60);
+
+    return (
+      <div
+        key={project.id}
+        className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0"
+      >
+        <div className="flex items-center flex-1">
+          <div
+            className="w-3 h-3 rounded-full mr-3"
+            style={{ backgroundColor: project.color }}
+          ></div>
+
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-900">
+              {project.name}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {hours}h {minutes}m logged
+            </p>
+          </div>
+        </div>
+
+        <span
+          className={`px-3 py-1 rounded-full text-xs font-medium ${
+            project.status === "active"
+              ? "bg-green-100 text-green-700"
+              : project.status === "completed"
+              ? "bg-blue-100 text-blue-700"
+              : "bg-yellow-100 text-yellow-700"
+          }`}
+        >
+          {project.status}
+        </span>
+      </div>
+    );
+  })}
+</div>
+
               ) : (
                 <div className="text-center py-8">
                   <AlertCircle size={48} className="mx-auto text-gray-300 mb-3" />

@@ -34,6 +34,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // mock login
     const token = 'mocked_jwt_token';
     const userData = { id: 1, name: 'Mock User', email: credentials.email, role: 'user' };
+    console.log(userData)
 
     localStorage.setItem('access_token', token);
     localStorage.setItem('user', JSON.stringify(userData));
