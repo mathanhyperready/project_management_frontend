@@ -10,14 +10,6 @@ interface Permission {
   delete: boolean;
 }
 
-interface RoleData {
-  id: number;
-  name: string;
-  description: string;
-  status: string;
-  permissions: Permission[];
-}
-
 const RoleForm: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -49,90 +41,6 @@ const RoleForm: React.FC = () => {
     }))
   );
 
-  // Mock database of roles
-  const mockRolesDatabase: Record<string, RoleData> = {
-    "1": {
-      id: 1,
-      name: "Admin",
-      description: "Full system access with all permissions",
-      status: "Active",
-      permissions: [
-        { page: "Dashboard", read: true, write: true, create: true, delete: true },
-        { page: "Projects", read: true, write: true, create: true, delete: true },
-        { page: "Timesheet", read: true, write: true, create: true, delete: true },
-        { page: "Calendar", read: true, write: true, create: true, delete: true },
-        { page: "Users", read: true, write: true, create: true, delete: true },
-        { page: "Roles", read: true, write: true, create: true, delete: true },
-        { page: "Clients", read: true, write: true, create: true, delete: true },
-        { page: "Reports", read: true, write: true, create: true, delete: true },
-      ]
-    },
-    "2": {
-      id: 2,
-      name: "Manager",
-      description: "Can manage projects and teams",
-      status: "Active",
-      permissions: [
-        { page: "Dashboard", read: true, write: false, create: false, delete: false },
-        { page: "Projects", read: true, write: true, create: true, delete: false },
-        { page: "Timesheet", read: true, write: true, create: false, delete: false },
-        { page: "Calendar", read: true, write: true, create: true, delete: false },
-        { page: "Users", read: true, write: false, create: false, delete: false },
-        { page: "Roles", read: true, write: false, create: false, delete: false },
-        { page: "Clients", read: true, write: true, create: false, delete: false },
-        { page: "Reports", read: true, write: false, create: false, delete: false },
-      ]
-    },
-    "3": {
-      id: 3,
-      name: "HR",
-      description: "Human Resources management",
-      status: "Active",
-      permissions: [
-        { page: "Dashboard", read: true, write: false, create: false, delete: false },
-        { page: "Projects", read: true, write: false, create: false, delete: false },
-        { page: "Timesheet", read: true, write: false, create: false, delete: false },
-        { page: "Calendar", read: true, write: true, create: true, delete: false },
-        { page: "Users", read: true, write: true, create: true, delete: false },
-        { page: "Roles", read: true, write: false, create: false, delete: false },
-        { page: "Clients", read: true, write: false, create: false, delete: false },
-        { page: "Reports", read: true, write: false, create: false, delete: false },
-      ]
-    },
-    "4": {
-      id: 4,
-      name: "Employee",
-      description: "Standard employee access",
-      status: "Active",
-      permissions: [
-        { page: "Dashboard", read: true, write: false, create: false, delete: false },
-        { page: "Projects", read: true, write: false, create: false, delete: false },
-        { page: "Timesheet", read: true, write: true, create: true, delete: false },
-        { page: "Calendar", read: true, write: false, create: false, delete: false },
-        { page: "Users", read: false, write: false, create: false, delete: false },
-        { page: "Roles", read: false, write: false, create: false, delete: false },
-        { page: "Clients", read: true, write: false, create: false, delete: false },
-        { page: "Reports", read: true, write: false, create: false, delete: false },
-      ]
-    },
-    "5": {
-      id: 5,
-      name: "User",
-      description: "Basic user access",
-      status: "Active",
-      permissions: [
-        { page: "Dashboard", read: true, write: false, create: false, delete: false },
-        { page: "Projects", read: true, write: false, create: false, delete: false },
-        { page: "Timesheet", read: true, write: true, create: false, delete: false },
-        { page: "Calendar", read: true, write: false, create: false, delete: false },
-        { page: "Users", read: false, write: false, create: false, delete: false },
-        { page: "Roles", read: false, write: false, create: false, delete: false },
-        { page: "Clients", read: false, write: false, create: false, delete: false },
-        { page: "Reports", read: false, write: false, create: false, delete: false },
-      ]
-    }
-  };
-
   // Fetch role data when editing
   useEffect(() => {
     const fetchRoleData = async () => {
@@ -141,20 +49,26 @@ const RoleForm: React.FC = () => {
       try {
         setLoading(true);
         
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
         // Replace with your actual API call
         // const response = await rolesAPI.getRoleById(id);
         
-        // Get role from mock database
-        const response = mockRolesDatabase[id];
-        
-        if (!response) {
-          alert("Role not found");
-          navigate('/role');
-          return;
-        }
+        // Mock API response for demonstration
+        const response = {
+          id: parseInt(id),
+          name: "Project Manager",
+          description: "Can manage projects and assign tasks",
+          status: "Active",
+          permissions: [
+            { page: "Dashboard", read: true, write: false, create: false, delete: false },
+            { page: "Projects", read: true, write: true, create: true, delete: false },
+            { page: "Timesheet", read: true, write: true, create: false, delete: false },
+            { page: "Calendar", read: true, write: true, create: true, delete: false },
+            { page: "Users", read: true, write: false, create: false, delete: false },
+            { page: "Roles", read: false, write: false, create: false, delete: false },
+            { page: "Clients", read: true, write: true, create: false, delete: false },
+            { page: "Reports", read: true, write: false, create: false, delete: false },
+          ]
+        };
 
         // Populate form with fetched data
         setRoleName(response.name);
@@ -177,14 +91,47 @@ const RoleForm: React.FC = () => {
     };
 
     fetchRoleData();
-  }, [id, navigate]);
+  }, [id]);
 
   const handlePermissionChange = (
     pageIndex: number,
     permissionType: keyof Omit<Permission, 'page'>
   ) => {
     const updated = [...permissions];
-    updated[pageIndex][permissionType] = !updated[pageIndex][permissionType];
+    const currentValue = updated[pageIndex][permissionType];
+    const newValue = !currentValue;
+    
+    // Update the clicked permission
+    updated[pageIndex][permissionType] = newValue;
+    
+    // Cascading logic when enabling permissions
+    if (newValue) {
+      if (permissionType === 'write') {
+        // Write requires Read
+        updated[pageIndex].read = true;
+      } else if (permissionType === 'create') {
+        // Create requires Read and Write
+        updated[pageIndex].read = true;
+        updated[pageIndex].write = true;
+      } else if (permissionType === 'delete') {
+        // Delete requires Read
+        updated[pageIndex].read = true;
+      }
+    }
+    
+    // Cascading logic when disabling permissions
+    if (!newValue) {
+      if (permissionType === 'read') {
+        // If Read is disabled, disable all dependent permissions
+        updated[pageIndex].write = false;
+        updated[pageIndex].create = false;
+        updated[pageIndex].delete = false;
+      } else if (permissionType === 'write') {
+        // If Write is disabled, disable Create (which depends on Write)
+        updated[pageIndex].create = false;
+      }
+    }
+    
     setPermissions(updated);
   };
 
@@ -212,9 +159,6 @@ const RoleForm: React.FC = () => {
     
     try {
       setLoading(true);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
       
       if (id) {
         // Update existing role
