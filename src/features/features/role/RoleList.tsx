@@ -253,7 +253,7 @@ const RoleList: React.FC = () => {
                     <td style={{ padding: "1rem 1.5rem" }}>
                       <input type="checkbox" style={{ cursor: "pointer" }} />
                     </td>
-                    <td style={{ padding: "1rem 1.5rem", color: "#374151" }}
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 cursor-pointer hover:text-blue-600" style={{ padding: "1rem 1.5rem", color: "#374151" }}
                      onClick={() => navigate(`/role/${role.id}`)}>
                       {role.name}
                     </td>
