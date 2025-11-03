@@ -5,9 +5,8 @@ export interface User {
   email: string;
   rolename: string;
   status: string;
-  createdAt: string;
   is_active: boolean;
-  role_id : number;
+  role_id: number | null;
   created_at: string;
   role: {
       id: number;
@@ -142,6 +141,7 @@ export interface PaginationParams {
 }
 
 export interface PaginatedResponse<T> {
+  results: PaginatedResponse<Role>;
   data: T[];
   total: number;
   page: number;

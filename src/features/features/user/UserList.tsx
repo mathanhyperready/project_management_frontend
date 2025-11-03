@@ -18,18 +18,41 @@ interface ApiUser {
 
 }
 
-const transformApiUserToUser = (apiUser: ApiUser): User => {
-  const userName = typeof apiUser.user_name === 'string' ? apiUser.user_name : apiUser.user_name?.name || 'Unknown';
-  const roleName = typeof apiUser.role === 'string' ? apiUser.role : apiUser.role?.name || '';
+const transformApiUserToUser = (apiUser: ApiUser | null): User | null => {
+  if (!apiUser || !apiUser.id) return null;
+
+  const userName = typeof apiUser.user_name === 'string'
+    ? apiUser.user_name
+    : apiUser.user_name?.name || 'Unknown';
+
+  const roleObj = typeof apiUser.role === 'object' && apiUser.role ? apiUser.role : null;
+  const roleName = roleObj?.name || (typeof apiUser.role === 'string' ? apiUser.role : 'Employee');
+  const roleId = roleObj?.id ?? apiUser.role_id ?? null;
 
   return {
     id: apiUser.id,
     user_name: userName,
-    password: apiUser.password,
-    email: apiUser.email,
+    password: apiUser.password || '',
+    email: apiUser.email || '',
     rolename: roleName,
     status: apiUser.is_active ? "Active" : "Inactive",
-    created_at: apiUser.created_at,
+    created_at: apiUser.created_at || '',
+    createdAt: apiUser.created_at || '',
+    is_active: apiUser.is_active,
+    role_id: roleId,
+    role: roleObj
+      ? {
+          id: roleObj.id,
+          name: roleObj.name,
+          is_enabled: roleObj.is_enabled,
+          created_at: roleObj.created_at || '',
+        }
+      : {
+          id: roleId || 0,
+          name: roleName,
+          is_enabled: true,
+          created_at: apiUser.created_at || '',
+        },
   };
 };
 
@@ -567,21 +590,39 @@ const UserList: React.FC = () => {
     }
   };
 
-  const handleUpdate = async (user: Partial<ApiUser>) => {
-    if (!editingUser) return;
-    try {
-      const updatedApiUser = await usersAPI.updateUser(editingUser.id, user);
-      const updatedUser = transformApiUserToUser(updatedApiUser);
-      setUsers((prev) =>
-        prev.map((u) => (u.id === editingUser.id ? updatedUser : u))
-      );
-      setShowEditModal(false);
-      setEditingUser(null);
-    } catch (err) {
-      console.error("Failed to update user:", err);
-      alert("Failed to update user. Please try again.");
-    }
-  };
+const handleUpdate = async (user: Partial<ApiUser>) => {
+  if (!editingUser) return;
+
+  try {
+    // 1. Send update (ignore return value)
+    await usersAPI.updateUser(editingUser.user_name, user);
+
+    // 2. REFETCH full list → always fresh, never null
+    const data: ApiUser[] = await usersAPI.getUsers({ page: 1, limit: 50 });
+    console.log(data,"kjhghjklkjhg")
+
+    const transformedUsers = Array.isArray(data)
+      ? data
+          .map(transformApiUserToUser)
+          .filter((u): u is User => u !== null) // remove any bad data
+          .sort((a, b) => {
+            const dateA = new Date(a.created_at || 0).getTime();
+            const dateB = new Date(b.created_at || 0).getTime();
+            return dateB - dateA;
+          })
+      : [];
+
+    setUsers(transformedUsers);
+
+    // Success
+    setShowEditModal(false);
+    setEditingUser(null);
+    alert("User updated successfully!");
+  } catch (err: any) {
+    console.error("Update failed:", err);
+    alert("Failed to update user: " + (err.message || "Unknown error"));
+  }
+};
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

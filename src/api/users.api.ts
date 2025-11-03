@@ -19,11 +19,23 @@ export const usersAPI = {
     return response.data;
   },
 
-  updateUser: async (userId: number, userData: Partial<User>): Promise<User> => {
-    const url = API_ENDPOINTS.USERS.UPDATE.replace('{user_id}', String(userId));
-    const response = await api.put<User>(url, userData);
-    return response.data;
-  },
+  updateUser: async (user_name: string, userData: Partial<User>): Promise<User> => {
+  const url = API_ENDPOINTS.USERS.UPDATE.replace('{user_name}', String(user_name));
+
+  // Send user_name + other fields as payload
+  const payload = {
+    ...(userData.user_name ? { user_name: userData.user_name } : {}),
+    ...(userData.email ? { email: userData.email } : {}),
+    ...(userData.password ? { password: userData.password } : {}),
+    ...(userData.role_id ? { role_id: userData.role_id } : {}),
+    ...(userData.status ? { status: userData.status } : {}),
+    ...(userData.is_active !== undefined ? { is_active: userData.is_active } : {}),
+  };
+
+  const response = await api.put<User>(url, payload);
+  return response.data;
+},
+
 
   deleteUser: async (userId: number): Promise<void> => {
     const url = API_ENDPOINTS.USERS.DELETE.replace('{user_id}', String(userId));

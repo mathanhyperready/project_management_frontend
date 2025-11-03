@@ -1,106 +1,32 @@
 import React, { useState, useEffect } from "react";
 import { Plus, MoreVertical, X, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { rolesAPI } from "../../../api/roles.api";
 
 interface Permission {
   id: number;
   name: string;
   code: string;
-  description: string;
-  status: "Active" | "Inactive";
-  created_at?: string;
+  description: string | null;
+}
+
+interface Role {
+  id: number;
+  name: string;
+  is_enabled: boolean;
+  created_at: string;
+  permissions: Permission[];
+}
+
+interface PermissionWithRoles extends Permission {
+  roles: string[]; // Array of role names that have this permission
 }
 
 const RolePermission: React.FC = () => {
-  const [permissions, setPermissions] = useState<Permission[]>([
-    {
-      id: 1,
-      name: "Project Create",
-      code: "project_create",
-      description: "Allows user to create new projects",
-      status: "Active",
-    },
-    {
-      id: 2,
-      name: "Project Edit",
-      code: "project_edit",
-      description: "Allows user to edit existing projects",
-      status: "Active",
-    },
-    {
-      id: 3,
-      name: "Project Delete",
-      code: "project_delete",
-      description: "Allows user to delete projects",
-      status: "Inactive",
-    },
-    {
-      id: 4,
-      name: "User View",
-      code: "user_view",
-      description: "Allows user to view user list",
-      status: "Active",
-    },
-    {
-      id: 5,
-      name: "User Create",
-      code: "user_create",
-      description: "Allows user to create new users",
-      status: "Active",
-    },
-    {
-      id: 6,
-      name: "User Edit",
-      code: "user_edit",
-      description: "Allows user to edit existing users",
-      status: "Active",
-    },
-    {
-      id: 7,
-      name: "User Delete",
-      code: "user_delete",
-      description: "Allows user to delete users",
-      status: "Inactive",
-    },
-    {
-      id: 8,
-      name: "Role View",
-      code: "role_view",
-      description: "Allows user to view roles",
-      status: "Active",
-    },
-    {
-      id: 9,
-      name: "Role Create",
-      code: "role_create",
-      description: "Allows user to create new roles",
-      status: "Active",
-    },
-    {
-      id: 10,
-      name: "Role Edit",
-      code: "role_edit",
-      description: "Allows user to edit existing roles",
-      status: "Active",
-    },
-    {
-      id: 11,
-      name: "Role Delete",
-      code: "role_delete",
-      description: "Allows user to delete roles",
-      status: "Inactive",
-    },
-    {
-      id: 12,
-      name: "Client View",
-      code: "client_view",
-      description: "Allows user to view clients",
-      status: "Active",
-    },
-  ]);
-
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [allPermissions, setAllPermissions] = useState<PermissionWithRoles[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [currentPermission, setCurrentPermission] = useState<Permission | null>(null);
+  const [selectedPermission, setSelectedPermission] = useState<PermissionWithRoles | null>(null);
   const [showMenuId, setShowMenuId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -108,107 +34,134 @@ const RolePermission: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Form state
-  const [formData, setFormData] = useState({
-    name: "",
-    code: "",
-    description: "",
-    status: "Active" as "Active" | "Inactive",
-  });
+  // Modal form state for role assignment
+  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  // Handle create
-  const handleCreate = () => {
-    setIsEditMode(false);
-    setFormData({
-      name: "",
-      code: "",
-      description: "",
-      status: "Active",
-    });
-    setShowModal(true);
+  // Fetch roles and permissions from backend
+  useEffect(() => {
+    fetchRolesAndPermissions();
+  }, []);
+
+  const fetchRolesAndPermissions = async () => {
+    try {
+      setLoading(true);
+      const response = await rolesAPI.getRoles();
+      console.log("Fetched roles response:", response);
+      
+      // Handle both paginated and non-paginated responses
+      const rolesData = response.results || response;
+      console.log("Roles data:", rolesData);
+      setRoles(Array.isArray(rolesData) ? rolesData : []);
+
+      // Extract all unique permissions and map which roles have them
+      const permissionsMap = new Map<number, PermissionWithRoles>();
+
+      if (Array.isArray(rolesData)) {
+        rolesData.forEach((role: Role) => {
+          if (role.is_enabled && role.permissions) {
+            role.permissions.forEach((perm) => {
+              if (!permissionsMap.has(perm.id)) {
+                permissionsMap.set(perm.id, {
+                  ...perm,
+                  roles: [],
+                });
+              }
+              permissionsMap.get(perm.id)?.roles.push(role.name);
+            });
+          }
+        });
+      }
+
+      const permissionsArray = Array.from(permissionsMap.values());
+      console.log("Processed permissions:", permissionsArray);
+      setAllPermissions(permissionsArray);
+    } catch (error) {
+      console.error("Failed to fetch roles and permissions:", error);
+      alert("Failed to load data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Handle edit
-  const handleEdit = (permission: Permission) => {
-    setIsEditMode(true);
-    setCurrentPermission(permission);
-    setFormData({
-      name: permission.name,
-      code: permission.code,
-      description: permission.description,
-      status: permission.status,
-    });
+  // Handle view/edit permission roles
+  const handleViewPermission = (permission: PermissionWithRoles) => {
+    setSelectedPermission(permission);
+    
+    // Get role IDs that have this permission
+    const roleIds = roles
+      .filter((role) => permission.roles.includes(role.name))
+      .map((role) => role.id);
+    
+    setSelectedRoles(roleIds);
     setShowModal(true);
     setShowMenuId(null);
   };
 
-  // Handle delete
-  const handleDelete = (id: number) => {
-    if (window.confirm("Are you sure you want to delete this permission?")) {
-      setPermissions(permissions.filter((p) => p.id !== id));
-      setShowMenuId(null);
-    }
+  // Handle role checkbox toggle
+  const handleRoleToggle = (roleId: number) => {
+    setSelectedRoles((prev) =>
+      prev.includes(roleId)
+        ? prev.filter((id) => id !== roleId)
+        : [...prev, roleId]
+    );
   };
 
-  // Handle save
-  const handleSave = () => {
-    if (!formData.name || !formData.code) {
-      alert("Name and Code are required");
-      return;
+  // Handle save role assignments
+  const handleSave = async () => {
+    if (!selectedPermission) return;
+
+    try {
+      setSaving(true);
+      
+      // Update each role's permissions
+      for (const role of roles) {
+        const currentPermissionIds = role.permissions.map(p => p.id);
+        let updatedPermissionIds = [...currentPermissionIds];
+
+        if (selectedRoles.includes(role.id)) {
+          // Add permission if not already present
+          if (!updatedPermissionIds.includes(selectedPermission.id)) {
+            updatedPermissionIds.push(selectedPermission.id);
+          }
+        } else {
+          // Remove permission if present
+          updatedPermissionIds = updatedPermissionIds.filter(
+            id => id !== selectedPermission.id
+          );
+        }
+
+        // Only update if there's a change
+        if (JSON.stringify(currentPermissionIds.sort()) !== 
+            JSON.stringify(updatedPermissionIds.sort())) {
+          console.log(`Updating role ${role.name} (ID: ${role.id}) with permissions:`, updatedPermissionIds);
+          await rolesAPI.updateRolePermissions(role.id, updatedPermissionIds);
+        }
+      }
+
+      // Refresh data to reflect changes in sidebar
+      await fetchRolesAndPermissions();
+      
+      // Trigger a custom event to update sidebar
+      window.dispatchEvent(new Event('permissionsUpdated'));
+      
+      setShowModal(false);
+      alert("Permission assignments updated successfully! The sidebar will update automatically.");
+    } catch (error) {
+      console.error("Failed to update permission assignments:", error);
+      alert("Failed to update assignments. Please try again.");
+    } finally {
+      setSaving(false);
     }
-
-    if (isEditMode && currentPermission) {
-      // Update existing permission
-      setPermissions(
-        permissions.map((p) =>
-          p.id === currentPermission.id
-            ? { ...p, ...formData }
-            : p
-        )
-      );
-    } else {
-      // Create new permission
-      const newPermission: Permission = {
-        id: Date.now(),
-        ...formData,
-        created_at: new Date().toISOString(),
-      };
-      setPermissions([...permissions, newPermission]);
-    }
-
-    setShowModal(false);
-    setFormData({
-      name: "",
-      code: "",
-      description: "",
-      status: "Active",
-    });
-  };
-
-  // Handle input change
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  // Auto-generate code from name
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.value;
-    const code = name
-      .toLowerCase()
-      .replace(/\s+/g, "_")
-      .replace(/[^a-z0-9_]/g, "");
-    setFormData((prev) => ({ ...prev, name, code }));
   };
 
   // Filter permissions
-  const filteredPermissions = permissions.filter(
+  const filteredPermissions = allPermissions.filter(
     (p) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase())
+      (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      p.roles.some((role) => role.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   // Pagination calculations
@@ -245,20 +198,31 @@ const RolePermission: React.FC = () => {
     }
   }, [showMenuId]);
 
+  if (loading) {
+    return (
+      <div className="flex-1 overflow-auto bg-gray-50">
+        <div className="p-6">
+          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading permissions...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-auto bg-gray-50">
       <div className="p-6">
         <div className="bg-white rounded-lg shadow-sm" style={{ maxHeight: "calc(100vh - 120px)" }}>
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
-            <h2 className="text-xl font-semibold text-gray-900">Role Permissions</h2>
-            <button
-              onClick={handleCreate}
-              className="flex items-center gap-2 px-4 py-2 bg-cyan-400 text-white rounded font-medium hover:bg-cyan-500 transition-colors"
-            >
-              <Plus size={20} />
-              Create Permission
-            </button>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Role Permissions</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Manage which roles have access to each permission. Changes update sidebar visibility automatically.
+              </p>
+            </div>
           </div>
 
           {/* Search Bar */}
@@ -269,7 +233,7 @@ const RolePermission: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search permissions..."
+                placeholder="Search permissions by name, code, or assigned roles..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400"
               />
             </div>
@@ -281,7 +245,7 @@ const RolePermission: React.FC = () => {
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Name
+                    Permission Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Code
@@ -290,7 +254,7 @@ const RolePermission: React.FC = () => {
                     Description
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
+                    Assigned Roles
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">
                     Actions
@@ -312,47 +276,29 @@ const RolePermission: React.FC = () => {
                       {permission.description || "-"}
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          permission.status === "Active"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {permission.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="relative inline-block">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowMenuId(showMenuId === permission.id ? null : permission.id);
-                          }}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <MoreVertical size={18} className="text-gray-600" />
-                        </button>
-
-                        {showMenuId === permission.id && (
-                          <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
-                            <button
-                              onClick={() => handleEdit(permission)}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      <div className="flex flex-wrap gap-1">
+                        {permission.roles.length > 0 ? (
+                          permission.roles.map((role, index) => (
+                            <span
+                              key={index}
+                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
                             >
-                              <Pencil size={16} />
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(permission.id)}
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                            >
-                              <Trash2 size={16} />
-                              Delete
-                            </button>
-                          </div>
+                              {role}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-gray-400 text-xs">No roles assigned</span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => handleViewPermission(permission)}
+                        className="p-1 hover:bg-gray-100 rounded text-cyan-600 hover:text-cyan-700"
+                        title="Manage role access"
+                      >
+                        <Pencil size={18} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -455,105 +401,107 @@ const RolePermission: React.FC = () => {
         </div>
       </div>
 
-      {/* Create/Edit Modal */}
-      {showModal && (
+      {/* Role Assignment Modal */}
+      {showModal && selectedPermission && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="p-6 border-b flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">
-                {isEditMode ? "Edit Permission" : "Create Permission"}
-              </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X size={24} />
-              </button>
+            <div className="p-6 border-b">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Manage Role Access
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {selectedPermission.name} ({selectedPermission.code})
+                  </p>
+                  <p className="text-xs text-blue-600 mt-2">
+                    ℹ️ Checking "{selectedPermission.code}" will show the "{selectedPermission.code.split('_')[0]}" page in sidebar
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                  disabled={saving}
+                >
+                  <X size={24} />
+                </button>
+              </div>
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-4">
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleNameChange}
-                  placeholder="e.g., Project Create"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                  required
-                />
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-4">
+                Select which roles should have this permission:
+              </p>
+              
+              <div className="space-y-3">
+                {roles.map((role) => (
+                  <label
+                    key={role.id}
+                    className={`flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${
+                      selectedRoles.includes(role.id) ? 'bg-blue-50 border-blue-300' : ''
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedRoles.includes(role.id)}
+                      onChange={() => handleRoleToggle(role.id)}
+                      disabled={saving}
+                      className="h-4 w-4 text-cyan-400 focus:ring-cyan-400 border-gray-300 rounded"
+                    />
+                    <div className="ml-3 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-900">
+                          {role.name}
+                        </span>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            role.is_enabled
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {role.is_enabled ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {role.permissions.length} permission(s) assigned
+                      </p>
+                    </div>
+                  </label>
+                ))}
               </div>
 
-              {/* Code */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Code <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="code"
-                  value={formData.code}
-                  onChange={handleInputChange}
-                  placeholder="e.g., project_create"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 font-mono text-sm"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Auto-generated from name. Use lowercase with underscores.
-                </p>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  placeholder="Enter permission description..."
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 resize-none"
-                />
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
+              {roles.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No roles available
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
             <div className="p-6 border-t flex justify-end gap-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                disabled={saving}
+                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
-                className="px-6 py-2 bg-cyan-400 text-white rounded-lg hover:bg-cyan-500"
+                disabled={saving}
+                className="px-6 py-2 bg-cyan-400 text-white rounded-lg hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {isEditMode ? "Update" : "Create"}
+                {saving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
               </button>
             </div>
           </div>
