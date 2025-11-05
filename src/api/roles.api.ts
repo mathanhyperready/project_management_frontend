@@ -29,4 +29,49 @@ export const rolesAPI = {
     const url = API_ENDPOINTS.ROLES.DELETE.replace('{role_id}', String(roleId));
     await api.delete(url);
   },
+
+  // ✅ NEW: Update role permissions
+  updateRolePermissions: async (roleId: number, permissionIds: number[]): Promise<Role> => {
+    const url = API_ENDPOINTS.ROLES.UPDATE_PERMISSIONS?.replace('{role_id}', String(roleId)) 
+      || `/roles/${roleId}/permissions/`;
+    const response = await api.put<Role>(url, { permission_ids: permissionIds });
+    return response.data;
+  },
+
+  // ✅ NEW: Get all unique permissions from all roles
+  getAllPermissions: async () => {
+    try {
+      // Fetch all roles without pagination
+      const response = await api.get<PaginatedResponse<Role>>(API_ENDPOINTS.ROLES.GET_ALL);
+      const roles = response.data.results || response.data;
+      
+      const permissionsMap = new Map();
+      
+      // Extract unique permissions
+      if (Array.isArray(roles)) {
+        roles.forEach((role: any) => {
+          if (role.permissions && Array.isArray(role.permissions)) {
+            role.permissions.forEach((perm: any) => {
+              if (!permissionsMap.has(perm.id)) {
+                permissionsMap.set(perm.id, perm);
+              }
+            });
+          }
+        });
+      }
+      
+      return Array.from(permissionsMap.values());
+    } catch (error) {
+      console.error('Error fetching all permissions:', error);
+      return [];
+    }
+  },
+
+  // ✅ NEW: Get permissions for a specific role
+  getRolePermissions: async (roleId: number) => {
+    const url = API_ENDPOINTS.ROLES.GET_PERMISSIONS?.replace('{role_id}', String(roleId))
+      || `/roles/${roleId}/permissions/`;
+    const response = await api.get(url);
+    return response.data;
+  },
 };

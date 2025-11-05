@@ -1,103 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { Plus, MoreVertical, X, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { permissionsAPI } from "../../../api/permission";
 
 interface Permission {
   id: number;
   name: string;
   code: string;
   description: string;
-  status: "Active" | "Inactive";
-  created_at?: string;
+  created_at: string;
 }
 
 const RolePermission: React.FC = () => {
-  const [permissions, setPermissions] = useState<Permission[]>([
-    {
-      id: 1,
-      name: "Project Create",
-      code: "project_create",
-      description: "Allows user to create new projects",
-      status: "Active",
-    },
-    {
-      id: 2,
-      name: "Project Edit",
-      code: "project_edit",
-      description: "Allows user to edit existing projects",
-      status: "Active",
-    },
-    {
-      id: 3,
-      name: "Project Delete",
-      code: "project_delete",
-      description: "Allows user to delete projects",
-      status: "Inactive",
-    },
-    {
-      id: 4,
-      name: "User View",
-      code: "user_view",
-      description: "Allows user to view user list",
-      status: "Active",
-    },
-    {
-      id: 5,
-      name: "User Create",
-      code: "user_create",
-      description: "Allows user to create new users",
-      status: "Active",
-    },
-    {
-      id: 6,
-      name: "User Edit",
-      code: "user_edit",
-      description: "Allows user to edit existing users",
-      status: "Active",
-    },
-    {
-      id: 7,
-      name: "User Delete",
-      code: "user_delete",
-      description: "Allows user to delete users",
-      status: "Inactive",
-    },
-    {
-      id: 8,
-      name: "Role View",
-      code: "role_view",
-      description: "Allows user to view roles",
-      status: "Active",
-    },
-    {
-      id: 9,
-      name: "Role Create",
-      code: "role_create",
-      description: "Allows user to create new roles",
-      status: "Active",
-    },
-    {
-      id: 10,
-      name: "Role Edit",
-      code: "role_edit",
-      description: "Allows user to edit existing roles",
-      status: "Active",
-    },
-    {
-      id: 11,
-      name: "Role Delete",
-      code: "role_delete",
-      description: "Allows user to delete roles",
-      status: "Inactive",
-    },
-    {
-      id: 12,
-      name: "Client View",
-      code: "client_view",
-      description: "Allows user to view clients",
-      status: "Active",
-    },
-  ]);
-
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentPermission, setCurrentPermission] = useState<Permission | null>(null);
@@ -113,8 +28,27 @@ const RolePermission: React.FC = () => {
     name: "",
     code: "",
     description: "",
-    status: "Active" as "Active" | "Inactive",
   });
+
+  // Fetch permissions on mount
+  useEffect(() => {
+    fetchPermissions();
+  }, []);
+
+  // Fetch permissions from API
+  const fetchPermissions = async () => {
+    try {
+      setLoading(true);
+      const data = await permissionsAPI.getPermissions();
+      console.log('Permissions fetched:', data);
+      setPermissions(data);
+    } catch (error) {
+      console.error('Error fetching permissions:', error);
+      alert('Failed to load permissions. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle create
   const handleCreate = () => {
@@ -123,7 +57,6 @@ const RolePermission: React.FC = () => {
       name: "",
       code: "",
       description: "",
-      status: "Active",
     });
     setShowModal(true);
   };
@@ -136,53 +69,60 @@ const RolePermission: React.FC = () => {
       name: permission.name,
       code: permission.code,
       description: permission.description,
-      status: permission.status,
     });
     setShowModal(true);
     setShowMenuId(null);
   };
 
   // Handle delete
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm("Are you sure you want to delete this permission?")) {
-      setPermissions(permissions.filter((p) => p.id !== id));
-      setShowMenuId(null);
+      try {
+        await permissionsAPI.deletePermission(id);
+        setPermissions(permissions.filter((p) => p.id !== id));
+        setShowMenuId(null);
+      } catch (error) {
+        console.error('Error deleting permission:', error);
+        alert('Failed to delete permission. Please try again.');
+      }
     }
   };
 
   // Handle save
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.code) {
       alert("Name and Code are required");
       return;
     }
 
-    if (isEditMode && currentPermission) {
-      // Update existing permission
-      setPermissions(
-        permissions.map((p) =>
-          p.id === currentPermission.id
-            ? { ...p, ...formData }
-            : p
-        )
-      );
-    } else {
-      // Create new permission
-      const newPermission: Permission = {
-        id: Date.now(),
-        ...formData,
-        created_at: new Date().toISOString(),
-      };
-      setPermissions([...permissions, newPermission]);
-    }
+    try {
+      if (isEditMode && currentPermission) {
+        // Update existing permission
+        const updatedPermission = await permissionsAPI.updatePermission(
+          currentPermission.id,
+          formData
+        );
+        setPermissions(
+          permissions.map((p) =>
+            p.id === currentPermission.id ? updatedPermission : p
+          )
+        );
+      } else {
+        // Create new permission
+        const newPermission = await permissionsAPI.createPermission(formData);
+        setPermissions([...permissions, newPermission]);
+      }
 
-    setShowModal(false);
-    setFormData({
-      name: "",
-      code: "",
-      description: "",
-      status: "Active",
-    });
+      setShowModal(false);
+      setFormData({
+        name: "",
+        code: "",
+        description: "",
+      });
+    } catch (error) {
+      console.error('Error saving permission:', error);
+      alert('Failed to save permission. Please try again.');
+    }
   };
 
   // Handle input change
@@ -275,182 +215,190 @@ const RolePermission: React.FC = () => {
             </div>
           </div>
 
-          {/* Table */}
-          <div className="flex-1 overflow-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 sticky top-0 z-10">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Code
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {currentPermissions.map((permission) => (
-                  <tr key={permission.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {permission.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      <code className="px-2 py-1 bg-gray-100 rounded text-xs">
-                        {permission.code}
-                      </code>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {permission.description || "-"}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          permission.status === "Active"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {permission.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="relative inline-block">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowMenuId(showMenuId === permission.id ? null : permission.id);
-                          }}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <MoreVertical size={18} className="text-gray-600" />
-                        </button>
-
-                        {showMenuId === permission.id && (
-                          <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
-                            <button
-                              onClick={() => handleEdit(permission)}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                            >
-                              <Pencil size={16} />
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(permission.id)}
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                            >
-                              <Trash2 size={16} />
-                              Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {filteredPermissions.length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                No permissions found
-              </div>
-            )}
-          </div>
-
-          {/* Pagination */}
-          {filteredPermissions.length > 0 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t bg-white flex-shrink-0">
-              {/* Left side - Showing info and items per page */}
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <span>
-                  Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} permissions
-                </span>
-                <div className="flex items-center gap-2">
-                  <span>Items per page:</span>
-                  <select
-                    value={itemsPerPage}
-                    onChange={handleItemsPerPageChange}
-                    className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                  >
-                    <option value={5}>5</option>
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Right side - Pagination controls */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className={`flex items-center gap-1 px-3 py-1 rounded border ${
-                    currentPage === 1
-                      ? "border-gray-200 text-gray-400 cursor-not-allowed"
-                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  <ChevronLeft size={16} />
-                  Previous
-                </button>
-
-                {/* Page numbers */}
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                    // Show first page, last page, current page, and pages around current
-                    if (
-                      page === 1 ||
-                      page === totalPages ||
-                      (page >= currentPage - 1 && page <= currentPage + 1)
-                    ) {
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => handlePageChange(page)}
-                          className={`w-8 h-8 rounded ${
-                            currentPage === page
-                              ? "bg-cyan-400 text-white"
-                              : "border border-gray-300 text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    } else if (page === currentPage - 2 || page === currentPage + 2) {
-                      return (
-                        <span key={page} className="px-2 text-gray-400">
-                          ...
-                        </span>
-                      );
-                    }
-                    return null;
-                  })}
-                </div>
-
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className={`flex items-center gap-1 px-3 py-1 rounded border ${
-                    currentPage === totalPages
-                      ? "border-gray-200 text-gray-400 cursor-not-allowed"
-                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  Next
-                  <ChevronRight size={16} />
-                </button>
-              </div>
+          {/* Loading State */}
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-gray-500">Loading permissions...</div>
             </div>
+          ) : (
+            <>
+              {/* Table */}
+              <div className="flex-1 overflow-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Code
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Description
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Created At
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-20">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {currentPermissions.map((permission) => (
+                      <tr key={permission.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          {permission.name}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          <code className="px-2 py-1 bg-gray-100 rounded text-xs">
+                            {permission.code}
+                          </code>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {permission.description || "-"}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {permission.created_at 
+                            ? new Date(permission.created_at).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
+                            : "-"}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="relative inline-block">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowMenuId(showMenuId === permission.id ? null : permission.id);
+                              }}
+                              className="p-1 hover:bg-gray-100 rounded"
+                            >
+                              <MoreVertical size={18} className="text-gray-600" />
+                            </button>
+
+                            {showMenuId === permission.id && (
+                              <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                                <button
+                                  onClick={() => handleEdit(permission)}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <Pencil size={16} />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(permission.id)}
+                                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                  <Trash2 size={16} />
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {filteredPermissions.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    No permissions found
+                  </div>
+                )}
+              </div>
+
+              {/* Pagination */}
+              {filteredPermissions.length > 0 && (
+                <div className="flex items-center justify-between px-6 py-4 border-t bg-white flex-shrink-0">
+                  {/* Left side - Showing info and items per page */}
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <span>
+                      Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} permissions
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span>Items per page:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={handleItemsPerPageChange}
+                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                      >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Right side - Pagination controls */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className={`flex items-center gap-1 px-3 py-1 rounded border ${
+                        currentPage === 1
+                          ? "border-gray-200 text-gray-400 cursor-not-allowed"
+                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      <ChevronLeft size={16} />
+                      Previous
+                    </button>
+
+                    {/* Page numbers */}
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                        if (
+                          page === 1 ||
+                          page === totalPages ||
+                          (page >= currentPage - 1 && page <= currentPage + 1)
+                        ) {
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => handlePageChange(page)}
+                              className={`w-8 h-8 rounded ${
+                                currentPage === page
+                                  ? "bg-cyan-400 text-white"
+                                  : "border border-gray-300 text-gray-700 hover:bg-gray-50"
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        } else if (page === currentPage - 2 || page === currentPage + 2) {
+                          return (
+                            <span key={page} className="px-2 text-gray-400">
+                              ...
+                            </span>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className={`flex items-center gap-1 px-3 py-1 rounded border ${
+                        currentPage === totalPages
+                          ? "border-gray-200 text-gray-400 cursor-not-allowed"
+                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      Next
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -522,22 +470,6 @@ const RolePermission: React.FC = () => {
                   rows={3}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 resize-none"
                 />
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
               </div>
             </div>
 

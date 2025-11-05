@@ -65,7 +65,7 @@ const ClientList: React.FC = () => {
         is_enabled: isActive,
       };
 
-      const createdClient = await usersAPI.createClient(newClientData);
+      const createdClient = await clientsAPI.createClient(newClientData);
       setClients([...clients, createdClient]);
       
       // Reset form

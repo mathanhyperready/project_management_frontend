@@ -6,16 +6,18 @@ export const API_ENDPOINTS = {
     USERS: {
         GET_ALL: '/user',
         CREATE: '/user',
-        GET_SINGLE: '/user/{user_id}',
-        UPDATE: '/user/{user_id}',
-        DELETE: '/user/{user_id}',
+        GET_SINGLE: '/user/{user_name}',
+        UPDATE: '/user/{user_name}',
+        DELETE: '/user/{user_name}',
     },
     ROLES: {
         GET_ALL: '/role',
         CREATE: '/role',
         GET_SINGLE : '/role/{role_id}',
         UPDATE : '/role/{role_id}',
-        DELETE : '/role/{role_id}'
+        DELETE : '/role/{role_id}',
+        UPDATE_PERMISSIONS: '/roles/{role_id}/permissions/',
+        GET_PERMISSIONS: '/roles/{role_id}/permissions/',
     },
     CLIENTS: {
         GET_ALL: '/clients',
@@ -33,10 +35,18 @@ export const API_ENDPOINTS = {
     },
     TIMESHEET : {
         GET_ALL: '/timesheet/project/{project_id}',
+        GET_ALL_TIMESHEET : '/timesheet',
         CREATE: '/timesheet',
         GET_SINGLE : '/timesheet/{timesheet_id}',
         UPDATE : '/timesheet/{timesheet_id}',
         DELETE : '/timesheet/{timesheet_id}'
+    },
+    PERMISSIONS:{
+        GET_ALL : '/permission',
+        CREATE: '/permission',
+        GET_SINGLE : '/permission/{permission_id}',
+        UPDATE : '/permission/{permission_id}',
+        DELETE : '/permission/{permission}'
     }
 
 }

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import { rolesAPI } from "../../../api/roles.api";
+
+
 
 interface Permission {
   page: string;
@@ -42,56 +45,62 @@ const RoleForm: React.FC = () => {
   );
 
   // Fetch role data when editing
-  useEffect(() => {
-    const fetchRoleData = async () => {
-      if (!id) return; // If no ID, it's create mode
-      
-      try {
-        setLoading(true);
-        
-        // Replace with your actual API call
-        // const response = await rolesAPI.getRoleById(id);
-        
-        // Mock API response for demonstration
-        const response = {
-          id: parseInt(id),
-          name: "Project Manager",
-          description: "Can manage projects and assign tasks",
-          status: "Active",
-          permissions: [
-            { page: "Dashboard", read: true, write: false, create: false, delete: false },
-            { page: "Projects", read: true, write: true, create: true, delete: false },
-            { page: "Timesheet", read: true, write: true, create: false, delete: false },
-            { page: "Calendar", read: true, write: true, create: true, delete: false },
-            { page: "Users", read: true, write: false, create: false, delete: false },
-            { page: "Roles", read: false, write: false, create: false, delete: false },
-            { page: "Clients", read: true, write: true, create: false, delete: false },
-            { page: "Reports", read: true, write: false, create: false, delete: false },
-          ]
+ useEffect(() => {
+  const fetchRoleData = async () => {
+    if (!id) return;
+
+    try {
+      setLoading(true);
+      const response = await rolesAPI.getRoleById(id);
+
+      setRoleName(response.name);
+      setDescription(response.description || "");
+      setStatus(response.is_enabled ? "Active" : "Inactive");
+
+      // Default permission table
+      const defaultPermissions = [
+        { page: "Dashboard", read: false, write: false, create: false, delete: false },
+        { page: "Projects", read: false, write: false, create: false, delete: false },
+        { page: "Timesheet", read: false, write: false, create: false, delete: false },
+        { page: "Calendar", read: false, write: false, create: false, delete: false },
+        { page: "Users", read: false, write: false, create: false, delete: false },
+        { page: "Roles", read: false, write: false, create: false, delete: false },
+        { page: "Clients", read: false, write: false, create: false, delete: false },
+        { page: "Reports", read: false, write: false, create: false, delete: false },
+      ];
+
+      // Helper to normalize name
+      const normalize = (str) => str.toLowerCase().replace(/s$/, ""); // remove trailing 's'
+
+      const updatedPermissions = defaultPermissions.map((perm) => {
+        const pageKey = normalize(perm.page); // e.g. "projects" → "project"
+
+        const relatedPerms = response.permissions.filter((p) =>
+          p.code.toLowerCase().startsWith(pageKey)
+        );
+
+        return {
+          ...perm,
+          create: relatedPerms.some((p) => p.code.includes("_create")),
+          delete: relatedPerms.some((p) => p.code.includes("_delete")),
+          write: relatedPerms.some((p) => p.code.includes("_update") || p.code.includes("_edit")),
+          read: relatedPerms.some((p) => p.code.includes("_view") || p.code.includes("_read")),
         };
+      });
 
-        // Populate form with fetched data
-        setRoleName(response.name);
-        setDescription(response.description || "");
-        setStatus(response.status);
-        
-        // Map permissions from API response
-        if (response.permissions && Array.isArray(response.permissions)) {
-          setPermissions(response.permissions);
-        }
+      setPermissions(updatedPermissions);
+      console.log("✅ Final mapped permissions:", updatedPermissions);
+    } catch (error) {
+      console.error("Error fetching role:", error);
+      alert("Failed to load role data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        console.log("Fetched role data:", response);
-        
-      } catch (error) {
-        console.error("Error fetching role:", error);
-        alert("Failed to load role data");
-      } finally {
-        setLoading(false);
-      }
-    };
+  fetchRoleData();
+}, [id]);
 
-    fetchRoleData();
-  }, [id]);
 
   const handlePermissionChange = (
     pageIndex: number,
@@ -145,40 +154,47 @@ const RoleForm: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!roleName) {
-      alert("Role name is required");
-      return;
-    }
+  try {
+    setLoading(true);
 
+    // 🧠 Convert checkbox state to permission codes
+    const selectedPermissionCodes: string[] = [];
+
+    permissions.forEach((perm) => {
+      const pageKey = perm.page.toLowerCase().replace(/s$/, ""); // e.g. "Projects" → "project"
+
+      if (perm.create) selectedPermissionCodes.push(`${pageKey}_create`);
+      if (perm.delete) selectedPermissionCodes.push(`${pageKey}_delete`);
+      if (perm.write) selectedPermissionCodes.push(`${pageKey}_update`);
+      if (perm.read) selectedPermissionCodes.push(`${pageKey}_view`);
+    });
+
+    // 🧱 Build payload
     const payload = {
       name: roleName,
-      description,
-      status,
-      permissions,
+      is_enabled: status === "Active",
+      permissions: selectedPermissionCodes,
     };
-    
-    try {
-      setLoading(true);
-      
-      if (id) {
-        // Update existing role
-        console.log("Updating role:", id, payload);
-        // await rolesAPI.updateRole(id, payload);
-      } else {
-        // Create new role
-        console.log("Creating role:", payload);
-        // await rolesAPI.createRole(payload);
-      }
-      
-      alert(id ? "Role updated successfully!" : "Role created successfully!");
-      navigate('/role');
-    } catch (error) {
-      console.error("Error saving role:", error);
-      alert("Failed to save role");
-    } finally {
-      setLoading(false);
+
+    console.log("🟢 Payload to send:", payload);
+
+    // 🧩 Call correct API
+    if (id) {
+      await rolesAPI.updateRole(parseInt(id), payload);
+      alert("✅ Role updated successfully!");
+    } else {
+      await rolesAPI.createRole(payload);
+      alert("✅ Role created successfully!");
     }
-  };
+
+  } catch (error) {
+    console.error("❌ Error saving role:", error);
+    alert("Failed to save role");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   if (loading && id) {
     return (

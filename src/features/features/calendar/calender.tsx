@@ -1,4 +1,4 @@
-import React, { useState , useEffect} from "react";
+import React, { useState, useEffect } from "react";
 import {
   Calendar,
   momentLocalizer,
@@ -12,19 +12,18 @@ import DatePicker from "react-datepicker";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-datepicker/dist/react-datepicker.css";
-import { projectsAPI } from '../../../api/projects.api';
-
+import { projectsAPI } from "../../../api/projects.api";
 import { useAppContext } from "../../../contexts/AppContext";
-import  type { EventType } from "../../../utils/types";
+import type { EventType } from "../../../utils/types";
 import { EventModal } from "./EventModal";
+import { timesheetsAPI } from "../../../api/timesheet.api";
 
 const localizer = momentLocalizer(moment);
 
 const CalendarViewComponent: React.FC = () => {
+  const { addEvent, updateEvent, deleteEvent } = useAppContext();
 
-  
-  const { events, addEvent, updateEvent, deleteEvent } = useAppContext();
-  
+  const [calendarEvents, setCalendarEvents] = useState<EventType[]>([]);
   const [date, setDate] = useState(new Date());
   const [view, setView] = useState<CalendarView>(Views.WEEK);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -42,65 +41,102 @@ const CalendarViewComponent: React.FC = () => {
   const [tags, setTags] = useState("");
   const [billable, setBillable] = useState(true);
 
-   useEffect(() => {
-      const fetchProject = async () => {
-        try {
-          const data = await projectsAPI.getProjects(); 
-          const formattedRoles = data.map((project: any) => ({
-            value: project.project_name, 
-            label: project.project_name,
-          }));
-          setProject(formattedRoles);
-        } catch (err) {
-          console.error('Failed to fetch Project:', err);
-        }
-      };
-  
-      fetchProject();
-      console.log("projectlist",project);
-    }, []);
+  // ✅ Fetch projects
+  useEffect(() => {
+    const fetchProject = async () => {
+      try {
+        const data = await projectsAPI.getProjects();
+        const formatted = data.map((project: any) => ({
+          value: project.project_name,
+          label: project.project_name,
+        }));
+        setProject(formatted);
+      } catch (err) {
+        console.error("Failed to fetch Project:", err);
+      }
+    };
+    fetchProject();
+  }, []);
+
+useEffect(() => {
+  const fetchTimesheets = async () => {
+    try {
+      const userData = JSON.parse(localStorage.getItem("user") || "{}");
+      const currentUserName = userData?.user_name;
+      const currentRoleId = userData?.role_id;
+
+      const response = await timesheetsAPI.getTimesheetsAll();
+      console.log("Timesheet API Response:", response);
+
+      const isAdmin = currentRoleId === 4;
+
+      const filteredData = isAdmin
+        ? response // show all if admin
+        : response.filter(
+            (item: any) => item.creator?.user_name === currentUserName
+          );
+
+      const mappedEvents = filteredData.map((t: any) => ({
+        id: t.id,
+        title: t.description || "No Description",
+        start: new Date(t.start_date),
+        end: new Date(t.end_date),
+        project: t.project?.project_name || "",
+        description: t.description,
+        status: t.status,
+        created_by: t.creator?.user_name || "Unknown",
+      }));
+
+      setCalendarEvents(mappedEvents);
+    } catch (error) {
+      console.error("Failed to fetch timesheets:", error);
+    }
+  };
+
+  fetchTimesheets();
+}, []);
+
 
   const handleSelectSlot = (slotInfo: SlotInfo) => {
     const start = moment(slotInfo.start).format("HH:mm");
     const end = moment(slotInfo.end).format("HH:mm");
-    
+
     setIsEditMode(false);
     setSelectedSlot(slotInfo);
     setStartTime(start);
     setEndTime(end);
     setSelectedDate(slotInfo.start);
     setDescription("");
-    setProject("");
     setTags("");
     setBillable(true);
     setShowModal(true);
   };
 
+  // ✅ Handle event click (edit)
   const handleSelectEvent = (event: Event) => {
-    const eventTyped = event as EventType;
-    const start = moment(eventTyped.start).format("HH:mm");
-    const end = moment(eventTyped.end).format("HH:mm");
-    
+    const e = event as EventType;
+    const start = moment(e.start).format("HH:mm");
+    const end = moment(e.end).format("HH:mm");
+
     setIsEditMode(true);
-    setEditingEvent(eventTyped);
+    setEditingEvent(e);
     setStartTime(start);
     setEndTime(end);
-    setSelectedDate(eventTyped.start);
-    setDescription(eventTyped.description || "");
-    setProject(eventTyped.project || "");
-    setTags(eventTyped.tags?.join(", ") || "");
-    setBillable(eventTyped.billable ?? true);
+    setSelectedDate(e.start);
+    setDescription(e.description || "");
+    setTags(e.tags?.join(", ") || "");
+    setBillable(e.billable ?? true);
     setShowModal(true);
   };
 
   const handleAddEntry = () => {
-    if (selectedSlot && description && project) {
+    if (selectedSlot && description) {
       const [startHour, startMin] = startTime.split(":").map(Number);
       const [endHour, endMin] = endTime.split(":").map(Number);
-      
+
       const startDate = new Date(selectedDate);
       startDate.setHours(startHour, startMin, 0, 0);
-      
+
       const endDate = new Date(selectedDate);
       endDate.setHours(endHour, endMin, 0, 0);
 
@@ -111,7 +147,7 @@ const CalendarViewComponent: React.FC = () => {
         end: endDate,
         description,
         project,
-        tags: tags ? tags.split(",").map(t => t.trim()) : [],
+        tags: tags ? tags.split(",").map((t) => t.trim()) : [],
         billable,
       };
       addEvent(newEvent);
@@ -120,13 +156,13 @@ const CalendarViewComponent: React.FC = () => {
   };
 
   const handleUpdateEntry = () => {
-    if (editingEvent && description && project) {
+    if (editingEvent && description) {
       const [startHour, startMin] = startTime.split(":").map(Number);
       const [endHour, endMin] = endTime.split(":").map(Number);
-      
+
       const startDate = new Date(selectedDate);
       startDate.setHours(startHour, startMin, 0, 0);
-      
+
       const endDate = new Date(selectedDate);
       endDate.setHours(endHour, endMin, 0, 0);
 
@@ -135,8 +171,7 @@ const CalendarViewComponent: React.FC = () => {
         start: startDate,
         end: endDate,
         description,
-        project,
-        tags: tags ? tags.split(",").map(t => t.trim()) : [],
+        tags: tags ? tags.split(",").map((t) => t.trim()) : [],
         billable,
       });
       setShowModal(false);
@@ -163,41 +198,53 @@ const CalendarViewComponent: React.FC = () => {
 
   const getDateRangeText = () => {
     if (view === Views.WEEK) {
-      const startOfWeek = moment(date).startOf('week');
-      const endOfWeek = moment(date).endOf('week');
-      return `${startOfWeek.format('DD/MM/YYYY')} - ${endOfWeek.format('DD/MM/YYYY')}`;
+      const startOfWeek = moment(date).startOf("week");
+      const endOfWeek = moment(date).endOf("week");
+      return `${startOfWeek.format("DD/MM/YYYY")} - ${endOfWeek.format("DD/MM/YYYY")}`;
     }
-    return moment(date).format('DD/MM/YYYY');
+    return moment(date).format("DD/MM/YYYY");
   };
 
-  const handleNavigate = (direction: 'prev' | 'next') => {
+  const handleNavigate = (direction: "prev" | "next") => {
     const amount = view === Views.DAY ? 1 : 7;
-    const newDate = moment(date)[direction === 'next' ? 'add' : 'subtract'](amount, 'days').toDate();
+    const newDate = moment(date)[direction === "next" ? "add" : "subtract"](
+      amount,
+      "days"
+    ).toDate();
     setDate(newDate);
+  };
+
+  // ✅ Color-coded event style
+  const eventPropGetter = (event: any) => {
+    let backgroundColor = "#9ca3af"; // gray default
+    if (event.status === "APPROVED") backgroundColor = "#16a34a"; // green
+    else if (event.status === "PENDING") backgroundColor = "#f59e0b"; // orange
+    else if (event.status === "REJECTED") backgroundColor = "#dc2626"; // red
+    return { style: { backgroundColor, color: "white" } };
   };
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {/* Custom Toolbar */}
+      {/* Toolbar */}
       <div className="p-4 bg-white border-b flex items-center justify-between">
         <div className="flex gap-2 items-center">
           <span className="text-sm text-gray-600 mr-2">CALENDAR</span>
           <button
             onClick={() => setView(Views.WEEK)}
-            className={`px-4 py-2 text-sm font-medium rounded transition-colors ${
-              view === Views.WEEK 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            className={`px-4 py-2 text-sm font-medium rounded ${
+              view === Views.WEEK
+                ? "bg-blue-500 text-white"
+                : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
             }`}
           >
             Week
           </button>
           <button
             onClick={() => setView(Views.DAY)}
-            className={`px-4 py-2 text-sm font-medium rounded transition-colors ${
-              view === Views.DAY 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            className={`px-4 py-2 text-sm font-medium rounded ${
+              view === Views.DAY
+                ? "bg-blue-500 text-white"
+                : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
             }`}
           >
             Day
@@ -231,13 +278,13 @@ const CalendarViewComponent: React.FC = () => {
 
           <div className="flex gap-1">
             <button
-              onClick={() => handleNavigate('prev')}
+              onClick={() => handleNavigate("prev")}
               className="p-2 border border-gray-300 rounded hover:bg-gray-50"
             >
               <ChevronLeft size={20} />
             </button>
             <button
-              onClick={() => handleNavigate('next')}
+              onClick={() => handleNavigate("next")}
               className="p-2 border border-gray-300 rounded hover:bg-gray-50"
             >
               <ChevronRight size={20} />
@@ -251,7 +298,7 @@ const CalendarViewComponent: React.FC = () => {
         <Calendar
           selectable
           localizer={localizer}
-          events={events}
+          events={calendarEvents}
           view={view}
           onView={setView}
           views={[Views.DAY, Views.WEEK]}
@@ -264,7 +311,16 @@ const CalendarViewComponent: React.FC = () => {
           timeslots={1}
           date={date}
           onNavigate={setDate}
-          components={{ toolbar: () => null }}
+          components={{
+            toolbar: () => null,
+            event: ({ event }) => (
+              <div>
+                <div className="font-semibold">{event.description}</div>
+                <div className="text-xs">{event.status}</div>
+              </div>
+            ),
+          }}
+          eventPropGetter={eventPropGetter}
         />
       </div>
 

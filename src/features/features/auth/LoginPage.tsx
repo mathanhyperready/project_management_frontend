@@ -74,7 +74,7 @@ const LoginPage: React.FC = () => {
     try {
       const response = await authAPI.login(formData)
       console.log("retyujhg",response)
-      localStorage.setItem('access_token', response.token);
+      localStorage.setItem('access_token', response.access_token);
       localStorage.setItem('user', JSON.stringify(response.user));
       window.location.reload();
       navigate('/');

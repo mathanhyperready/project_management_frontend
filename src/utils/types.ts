@@ -5,13 +5,20 @@ export interface User {
   email: string;
   rolename: string;
   status: string;
-  createdAt: string;
   is_active: boolean;
-  role_id : number;
+  role_id: number | null;
   created_at: string;
+  role: {
+      id: number;
+      name: string;
+      is_enabled: boolean;
+      created_at: string;
+    };
 }
 
 export interface Role {
+  description: string;
+  permissions: any;
   id: number;
   name: string;
   is_enabled: boolean;
@@ -123,7 +130,7 @@ export interface SignupInput {
 }
 
 export interface AuthResponse {
-  token: string;
+  access_token: string;
   user: User;
 }
 
@@ -135,7 +142,16 @@ export interface PaginationParams {
   sortOrder?: 'asc' | 'desc';
 }
 
+export interface Permission {
+  id: number;
+  name: string;
+  description?: string;
+  created_at: string;
+}
+
+
 export interface PaginatedResponse<T> {
+  results: PaginatedResponse<Role>;
   data: T[];
   total: number;
   page: number;
