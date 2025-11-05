@@ -35,10 +35,18 @@ export const API_ENDPOINTS = {
     },
     TIMESHEET : {
         GET_ALL: '/timesheet/project/{project_id}',
+        GET_ALL_TIMESHEET : '/timesheet',
         CREATE: '/timesheet',
         GET_SINGLE : '/timesheet/{timesheet_id}',
         UPDATE : '/timesheet/{timesheet_id}',
         DELETE : '/timesheet/{timesheet_id}'
+    },
+    PERMISSIONS:{
+        GET_ALL : '/permission',
+        CREATE: '/permission',
+        GET_SINGLE : '/permission/{permission_id}',
+        UPDATE : '/permission/{permission_id}',
+        DELETE : '/permission/{permission}'
     }
 
 }

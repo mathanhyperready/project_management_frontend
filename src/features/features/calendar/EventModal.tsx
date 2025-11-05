@@ -85,9 +85,31 @@ export const EventModal: React.FC<EventModalProps> = ({
     else setEndTime(value);
   };
 
-  const handleSave = async () => {
+ const handleSave = async () => {
     try {
       setSaving(true);
+
+      // Get userId from localStorage if not provided via props
+      let currentUserId = userId;
+      
+      if (!currentUserId) {
+        try {
+          const userFromStorage = localStorage.getItem('user');
+          if (userFromStorage) {
+            const userData = JSON.parse(userFromStorage);
+            currentUserId = userData.id;
+          }
+        } catch (err) {
+          console.error("❌ Failed to parse user from localStorage:", err);
+        }
+      }
+
+      // Validate userId
+      if (!currentUserId) {
+        console.error("❌ User ID is missing");
+        alert("User ID is required. Please log in again.");
+        return;
+      }
 
       // Find the selected project to get its ID
       const selectedProject = projectList.find(p => p.project_name === project);
@@ -106,12 +128,15 @@ export const EventModal: React.FC<EventModalProps> = ({
       // Prepare the timesheet entry payload
       const timesheetPayload = {
         projectId: selectedProject.id,
-        userId: userId,
+        userId: currentUserId,
         description: description,
         status: "PENDING",
         start_date: startDateTime,
-        end_date: endDateTime
+        end_date: endDateTime,
+        created_by: currentUserId
       };
+
+      console.log("📤 Sending timesheet payload:", timesheetPayload);
 
       // Create the timesheet entry
       if (isEditMode) {
@@ -120,8 +145,8 @@ export const EventModal: React.FC<EventModalProps> = ({
         console.log("Update payload:", timesheetPayload);
       } else {
         // Create new timesheet entry
-        await timesheetsAPI.createTimesheet(timesheetPayload);
-        console.log("✅ Timesheet entry created:", timesheetPayload);
+        const response = await timesheetsAPI.createTimesheet(timesheetPayload);
+        console.log("✅ Timesheet entry created:", response);
       }
 
       // Call the original onSave callback
@@ -133,7 +158,6 @@ export const EventModal: React.FC<EventModalProps> = ({
       setSaving(false);
     }
   };
-
   if (!show) return null;
 
   return (

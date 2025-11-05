@@ -37,17 +37,78 @@ interface TimeEntry {
 }
 
 export const Timesheet: React.FC = () => {
-  const { projects } = useAppContext();
+  const { projects, user } = useAppContext(); // If user doesn't exist in context, we'll handle it
   const [currentWeekStart, setCurrentWeekStart] = useState(new Date());
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null); // Local state for user
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [projectsPerPage, setProjectsPerPage] = useState(8); // Changed to 8 projects per page
+  const [projectsPerPage, setProjectsPerPage] = useState(8);
 
   const weekDates = getWeekDates(currentWeekStart);
+
+  // Fetch current user from localStorage or API
+  useEffect(() => {
+    const fetchCurrentUser = () => {
+      // Try to get user from localStorage (common pattern)
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setCurrentUser(parsedUser);
+          console.log('User loaded from localStorage:', parsedUser);
+        } catch (err) {
+          console.error('Error parsing user from localStorage:', err);
+        }
+      } else {
+        // If user is available from context, use it
+        if (user) {
+          setCurrentUser(user);
+          console.log('User loaded from context:', user);
+        } else {
+          console.warn('No user found in context or localStorage');
+        }
+      }
+    };
+
+    fetchCurrentUser();
+  }, [user]);
+
+  // Filter entries based on user role
+  const filterEntriesByRole = (entries: TimeEntry[]): TimeEntry[] => {
+    if (!currentUser) {
+      console.log('No current user found, returning all entries');
+      return entries;
+    }
+    
+    console.log('Filtering entries for user:', currentUser.user_name);
+    
+    const isAdmin = 
+      currentUser.role?.name?.toLowerCase() === 'admin' || 
+      currentUser.role_id === 1 || 
+      currentUser.role_id === 4;
+    
+    console.log('Is admin?', isAdmin, 'role_id:', currentUser.role_id);
+    
+    if (isAdmin) {
+      console.log('User is admin, showing all entries');
+      return entries; // Admin sees all entries
+    }
+    
+    // Regular users only see their own entries
+    const filtered = entries.filter(entry => {
+      const creatorName = entry.creator?.user_name;
+      const matches = creatorName === currentUser.user_name;
+      console.log(`Entry ${entry.id}: creator=${creatorName}, user=${currentUser.user_name}, matches=${matches}`);
+      return matches;
+    });
+    
+    console.log(`Filtered ${filtered.length} entries out of ${entries.length}`);
+    return filtered;
+  };
 
   // Calculate pagination
   const indexOfLastProject = currentPage * projectsPerPage;
@@ -59,6 +120,12 @@ export const Timesheet: React.FC = () => {
   useEffect(() => {
     const fetchTimeEntries = async () => {
       if (projects.length === 0) return;
+
+      // Debug: Log user object
+      console.log('Current user:', currentUser);
+      console.log('User role_id:', currentUser?.role_id);
+      console.log('User role:', currentUser?.role);
+      console.log('User name:', currentUser?.user_name);
 
       setLoading(true);
       setError(null);
@@ -77,7 +144,12 @@ export const Timesheet: React.FC = () => {
           }
         }
         
-        setTimeEntries(allEntries);
+        // Filter entries based on user role
+        const filteredEntries = filterEntriesByRole(allEntries);
+        console.log('Total entries fetched:', allEntries.length);
+        console.log('Filtered entries:', filteredEntries.length);
+        console.log('Sample entry:', allEntries[0]);
+        setTimeEntries(filteredEntries);
       } catch (err) {
         console.error("Error fetching time entries:", err);
         setError("Failed to load time entries");
@@ -87,7 +159,7 @@ export const Timesheet: React.FC = () => {
     };
 
     fetchTimeEntries();
-  }, [projects]);
+  }, [projects, currentUser]); // Use currentUser instead of user
 
   // Reset to first page when projects change
   useEffect(() => {
@@ -265,7 +337,7 @@ export const Timesheet: React.FC = () => {
 
         {/* Timesheet Table */}
         {!loading && (
-          <div className="flex-1 overflow-auto" style={{ maxHeight: 'calc(100% - 12rem)' }}> {/* Adjusted maxHeight to ensure scrolling */}
+          <div className="flex-1 overflow-auto" style={{ maxHeight: 'calc(100% - 12rem)' }}>
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
@@ -357,7 +429,7 @@ export const Timesheet: React.FC = () => {
                     className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value={5}>5</option>
-                    <option value={8}>8</option> {/* Added 8 as an option */}
+                    <option value={8}>8</option>
                     <option value={10}>10</option>
                     <option value={20}>20</option>
                     <option value={50}>50</option>
@@ -365,53 +437,51 @@ export const Timesheet: React.FC = () => {
                 </div>
 
                 {/* Page Navigation (Previous, Page Numbers, Next) - Right Side */}
-               <div className="flex items-center gap-2">
-  <PaginationItem>
-    <PaginationPrevious
-      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-      className={`cursor-pointer rounded-md ${
-        currentPage === 1 ? "pointer-events-none opacity-50" : "hover:bg-gray-100"
-      }`}
-    >
-      <span className="text-sm">Previous</span>
-    </PaginationPrevious>
-  </PaginationItem>
+                <div className="flex items-center gap-2">
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      className={`cursor-pointer rounded-md ${
+                        currentPage === 1 ? "pointer-events-none opacity-50" : "hover:bg-gray-100"
+                      }`}
+                    >
+                      <span className="text-sm">Previous</span>
+                    </PaginationPrevious>
+                  </PaginationItem>
 
-  {getPaginationItems().map((item, index) => (
-    <PaginationItem key={index}>
-      {item === "ellipsis" ? (
-        // Remove or replace ellipsis here
-        <span className="w-4" />  // keeps spacing consistent without showing dots
-      ) : (
-        <PaginationLink
-          onClick={() => setCurrentPage(item as number)}
-          isActive={currentPage === item}
-          className={`cursor-pointer rounded-md px-3 py-1 text-sm ${
-            currentPage === item
-              ? "bg-blue-500 text-white"
-              : "hover:bg-gray-100"
-          }`}
-        >
-          {item}
-        </PaginationLink>
-      )}
-    </PaginationItem>
-  ))}
+                  {getPaginationItems().map((item, index) => (
+                    <PaginationItem key={index}>
+                      {item === "ellipsis" ? (
+                        <span className="w-4" />
+                      ) : (
+                        <PaginationLink
+                          onClick={() => setCurrentPage(item as number)}
+                          isActive={currentPage === item}
+                          className={`cursor-pointer rounded-md px-3 py-1 text-sm ${
+                            currentPage === item
+                              ? "bg-blue-500 text-white"
+                              : "hover:bg-gray-100"
+                          }`}
+                        >
+                          {item}
+                        </PaginationLink>
+                      )}
+                    </PaginationItem>
+                  ))}
 
-  <PaginationItem>
-    <PaginationNext
-      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-      className={`cursor-pointer rounded-md ${
-        currentPage === totalPages
-          ? "pointer-events-none opacity-50"
-          : "hover:bg-gray-100"
-      }`}
-    >
-      <span className="text-sm">Next</span>
-    </PaginationNext>
-  </PaginationItem>
-</div>
-
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      className={`cursor-pointer rounded-md ${
+                        currentPage === totalPages
+                          ? "pointer-events-none opacity-50"
+                          : "hover:bg-gray-100"
+                      }`}
+                    >
+                      <span className="text-sm">Next</span>
+                    </PaginationNext>
+                  </PaginationItem>
+                </div>
               </div>
             </div>
           </div>

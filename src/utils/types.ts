@@ -17,6 +17,8 @@ export interface User {
 }
 
 export interface Role {
+  description: string;
+  permissions: any;
   id: number;
   name: string;
   is_enabled: boolean;
@@ -139,6 +141,14 @@ export interface PaginationParams {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
+
+export interface Permission {
+  id: number;
+  name: string;
+  description?: string;
+  created_at: string;
+}
+
 
 export interface PaginatedResponse<T> {
   results: PaginatedResponse<Role>;

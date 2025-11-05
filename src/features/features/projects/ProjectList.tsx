@@ -160,44 +160,66 @@ const ProjectsPage: React.FC = () => {
     };
   };
 
-  // Fetch projects from API with pagination
   const fetchProjects = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await projectsAPI.getProjects({ page: currentPage, limit: itemsPerPage });
+  try {
+    setLoading(true);
+    setError(null);
 
-      let backendProjects: BackendProject[] = [];
-      let totalItems = 0;
+    const response = await projectsAPI.getProjects({ page: currentPage, limit: itemsPerPage });
+    console.log("API Response:", response);
 
-      if (Array.isArray(response)) {
-        backendProjects = response as unknown as BackendProject[];
-        totalItems = backendProjects.length;
-      } else if (response.data && Array.isArray(response.data)) {
-        backendProjects = response.data as unknown as BackendProject[];
-        totalItems = response.total || backendProjects.length;
-      } else if (response.items && Array.isArray(response.items)) {
-        backendProjects = response.items as unknown as BackendProject[];
-        totalItems = response.total || backendProjects.length;
-      } else {
-        console.error("Unexpected response structure:", response);
-        throw new Error("Invalid response format from API");
-      }
+    let backendProjects: BackendProject[] = [];
+    let totalItems = 0;
 
-      const transformedProjects = backendProjects.map(transformBackendProject);
-      setProjects(transformedProjects);
-      setTotalPages(Math.ceil(totalItems / itemsPerPage));
-      // Adjust currentPage if it exceeds the new totalPages
-      if (currentPage > Math.ceil(totalItems / itemsPerPage)) {
-        setCurrentPage(1);
-      }
-    } catch (err: any) {
-      console.error("Error fetching projects:", err);
-      setError(err.response?.data?.message || err.message || "Failed to load projects. Please try again.");
-    } finally {
-      setLoading(false);
+    if (Array.isArray(response)) {
+      backendProjects = response as unknown as BackendProject[];
+      totalItems = backendProjects.length;
+    } else if (response.data && Array.isArray(response.data)) {
+      backendProjects = response.data as unknown as BackendProject[];
+      totalItems = response.total || backendProjects.length;
+    } else if (response.items && Array.isArray(response.items)) {
+      backendProjects = response.items as unknown as BackendProject[];
+      totalItems = response.total || backendProjects.length;
+    } else {
+      console.error("Unexpected response structure:", response);
+      throw new Error("Invalid response format from API");
     }
-  };
+
+
+    const userData = localStorage.getItem("user");
+    const currentUser = userData ? JSON.parse(userData) : null;
+    const currentUserId = currentUser?.id;
+    const currentUserRoleName = currentUser?.role?.name;
+
+    const isAdmin = currentUserRoleName?.toLowerCase() === "admin";
+
+    console.log("Current user role:", currentUserRoleName);
+    console.log("Is admin?", isAdmin);
+
+    const filteredProjects = isAdmin
+      ? backendProjects
+      : backendProjects.filter(project => project.created_by === currentUserId);
+
+    const transformedProjects = filteredProjects.map(transformBackendProject);
+
+    setProjects(transformedProjects);
+    setTotalPages(Math.ceil(filteredProjects.length / itemsPerPage));
+
+    if (currentPage > Math.ceil(filteredProjects.length / itemsPerPage)) {
+      setCurrentPage(1);
+    }
+  } catch (err: any) {
+    console.error("Error fetching projects:", err);
+    setError(
+      err.response?.data?.message ||
+        err.message ||
+        "Failed to load projects. Please try again."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     fetchProjects();
@@ -252,6 +274,7 @@ const ProjectsPage: React.FC = () => {
     }
     const userData = localStorage.getItem("user");
     const userId = userData ? JSON.parse(userData).id : null;
+    console.log(userId)
 
     try {
       const newProjectData = {
@@ -261,7 +284,7 @@ const ProjectsPage: React.FC = () => {
         end_date: endDate ? new Date(endDate).toISOString() : undefined,
         status: "PLANNED",
         client_id: selectedClient ? parseInt(selectedClient) : null,
-        user_id: userId,
+        created_by: userId,
       };
 
       const createdProject = await projectsAPI.createProject(newProjectData);
