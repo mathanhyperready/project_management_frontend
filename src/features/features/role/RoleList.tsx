@@ -3,6 +3,15 @@ import React, { useState, useEffect, useRef } from "react";
 import { rolesAPI } from '../../../api/roles.api';
 import type { Role, PaginationParams } from "../../../utils/types";
 import { useNavigate } from "react-router-dom";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 
 const RoleList: React.FC = () => {
   const navigate = useNavigate();
@@ -14,25 +23,40 @@ const RoleList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Fetch roles on component mount
-  useEffect(() => {
-    const fetchRoles = async () => {
-      setLoading(true);
-      try {
-        const params: Partial<PaginationParams> = {};
-        const response = await rolesAPI.getRoles(params);
-        console.log("API Response:", response);
-        setRoles(Array.isArray(response) ? response : []);
-      } catch (err) {
-        setError("Failed to fetch roles. Please try again.");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchRoles();
-  }, []);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10); // items per page
+  const [totalCount, setTotalCount] = useState(0);
+
+  
+const fetchRoles = async (pageNum = 1) => {
+    setLoading(true);
+    try {
+      const params: Partial<PaginationParams> = { page: pageNum, limit };
+      const response = await rolesAPI.getRoles(params);
+
+      // assuming API returns something like:
+      // { data: Role[], total: number }
+      if (Array.isArray(response)) {
+        setRoles(response);
+        setTotalCount(response.length); // fallback if backend doesn’t return total
+      } else if (response?.data) {
+        setRoles(response.data);
+        setTotalCount(response.total || 0);
+      } else {
+        setRoles([]);
+      }
+    } catch (err) {
+      setError("Failed to fetch roles. Please try again.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRoles(page);
+  }, [page]);
 
   // Create new role
   const handleCreate = async () => {
@@ -126,6 +150,7 @@ const RoleList: React.FC = () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+  const totalPages = Math.ceil(totalCount / limit) || 1;
 
   return (
     <div style={{ padding: "1.5rem" }} ref={menuRef}>
@@ -557,6 +582,45 @@ const RoleList: React.FC = () => {
           </div>
         </div>
       )}
+
+       <div
+        style={{
+          marginTop: "1rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <button
+          onClick={() => setPage((p) => Math.max(p - 1, 1))}
+          disabled={page === 1 || loading}
+          style={{
+            backgroundColor: "#e5e7eb",
+            borderRadius: "6px",
+            padding: "0.5rem 1rem",
+            cursor: page === 1 ? "not-allowed" : "pointer",
+          }}
+        >
+          ← Previous
+        </button>
+
+        <span style={{ fontSize: "0.875rem", color: "#374151" }}>
+          Page {page} of {totalPages}
+        </span>
+
+        <button
+          onClick={() => setPage((p) => (p < totalPages ? p + 1 : p))}
+          disabled={page >= totalPages || loading}
+          style={{
+            backgroundColor: "#e5e7eb",
+            borderRadius: "6px",
+            padding: "0.5rem 1rem",
+            cursor: page >= totalPages ? "not-allowed" : "pointer",
+          }}
+        >
+          Next →
+        </button>
+      </div>
     </div>
   );
 };
