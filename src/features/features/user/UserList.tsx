@@ -1,4 +1,4 @@
-import { MoreVertical, Trash2, X, Eye, EyeOff } from "lucide-react";
+import { MoreVertical, Trash2, X, Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
 import React, { useState, useRef, useEffect } from "react";
 import { usersAPI } from '../../../api/users.api';
 import { authAPI } from '../../../api/auth.api';
@@ -15,7 +15,6 @@ interface ApiUser {
   created_at: string;
   projects: any[];
   timesheets: any[];
-
 }
 
 const transformApiUserToUser = (apiUser: ApiUser | null): User | null => {
@@ -538,30 +537,38 @@ const UserList: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userToDelete, setUserToDelete] = useState<{ id: number; name: string } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalUsers, setTotalUsers] = useState(0);
+
+  const fetchUsers = async (page: number, limit: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data: ApiUser[] = await usersAPI.getUsers({ page, limit });
+      console.log("API Response:", JSON.stringify(data, null, 2));
+      const transformedUsers = Array.isArray(data)
+        ? data.map(transformApiUserToUser).filter((u): u is User => u !== null).sort((a, b) => {
+          const dateA = new Date(a.created_at || 0).getTime();
+          const dateB = new Date(b.created_at || 0).getTime();
+          return dateB - dateA;
+        })
+        : [];
+      setUsers(transformedUsers);
+      setTotalUsers(transformedUsers.length); // You may want to get total count from API
+    } catch (err) {
+      console.error("Failed to fetch users:", err);
+      setError("Failed to fetch users. Please try again.");
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data: ApiUser[] = await usersAPI.getUsers({ page: 1, limit: 50 });
-        console.log("API Response:", JSON.stringify(data, null, 2));
-        const transformedUsers = Array.isArray(data)
-          ? data.map(transformApiUserToUser).sort((a, b) => {
-            const dateA = new Date(a.created_at || 0).getTime();
-            const dateB = new Date(b.created_at || 0).getTime();
-            return dateB - dateA;
-          })
-          : [];
-        setUsers(transformedUsers);
-      } catch (err) {
-        console.error("Failed to fetch users:", err);
-        setError("Failed to fetch users. Please try again.");
-        setUsers([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+    fetchUsers(currentPage, itemsPerPage);
 
     const fetchRoles = async () => {
       try {
@@ -574,9 +581,8 @@ const UserList: React.FC = () => {
       }
     };
 
-    fetchUsers();
     fetchRoles();
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   const handleCreate = async (user: Partial<ApiUser>) => {
     try {
@@ -584,45 +590,27 @@ const UserList: React.FC = () => {
       const newUser = transformApiUserToUser(newApiUser);
       setUsers((prev) => [newUser, ...prev]);
       setShowCreateModal(false);
+      fetchUsers(currentPage, itemsPerPage); // Refresh the list
     } catch (err) {
       console.error("Failed to create user:", err);
       alert("Failed to create user. Please try again.");
     }
   };
 
-const handleUpdate = async (user: Partial<ApiUser>) => {
-  if (!editingUser) return;
+  const handleUpdate = async (user: Partial<ApiUser>) => {
+    if (!editingUser) return;
 
-  try {
-    // 1. Send update (ignore return value)
-    await usersAPI.updateUser(editingUser.user_name, user);
-
-    // 2. REFETCH full list → always fresh, never null
-    const data: ApiUser[] = await usersAPI.getUsers({ page: 1, limit: 50 });
-    console.log(data,"kjhghjklkjhg")
-
-    const transformedUsers = Array.isArray(data)
-      ? data
-          .map(transformApiUserToUser)
-          .filter((u): u is User => u !== null) // remove any bad data
-          .sort((a, b) => {
-            const dateA = new Date(a.created_at || 0).getTime();
-            const dateB = new Date(b.created_at || 0).getTime();
-            return dateB - dateA;
-          })
-      : [];
-
-    setUsers(transformedUsers);
-
-    // Success
-    setShowEditModal(false);
-    setEditingUser(null);
-    alert("User updated successfully!");
-  } catch (err: any) {
-    console.error("Update failed:", err);
-    alert("Failed to update user: " + (err.message || "Unknown error"));
-  }
-};
+    try {
+      await usersAPI.updateUser(editingUser.user_name, user);
+      await fetchUsers(currentPage, itemsPerPage); // Refetch users
+      setShowEditModal(false);
+      setEditingUser(null);
+      alert("User updated successfully!");
+    } catch (err: any) {
+      console.error("Update failed:", err);
+      alert("Failed to update user: " + (err.message || "Unknown error"));
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -650,6 +638,7 @@ const handleUpdate = async (user: Partial<ApiUser>) => {
       setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
       setShowDeleteConfirm(false);
       setUserToDelete(null);
+      fetchUsers(currentPage, itemsPerPage); // Refresh the list
     } catch (err) {
       console.error("Failed to delete user:", err);
       alert("Failed to delete user. Please try again.");
@@ -661,6 +650,58 @@ const handleUpdate = async (user: Partial<ApiUser>) => {
   const handleCancelDelete = () => {
     setShowDeleteConfirm(false);
     setUserToDelete(null);
+  };
+
+  // Calculate total pages
+  const totalPages = Math.ceil(totalUsers / itemsPerPage);
+
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
+  };
+
+  // Handle items per page change
+  const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1); // Reset to first page
+  };
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxPagesToShow = 5;
+    
+    if (totalPages <= maxPagesToShow) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+          pages.push(i);
+        }
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    
+    return pages;
   };
 
   return (
@@ -741,259 +782,378 @@ const handleUpdate = async (user: Partial<ApiUser>) => {
       )}
 
       {!loading && (
-        <div
-          style={{
-            overflow: "auto",
-            border: "1px solid #e5e7eb",
-            borderRadius: "0.5rem",
-            backgroundColor: "white",
-            flex: 1,
-          }}
-        >
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr
-                style={{
-                  backgroundColor: "#f9fafb",
-                  borderBottom: "1px solid #e5e7eb",
-                }}
-              >
-                <th
-                  style={{ padding: "0.75rem 1.5rem", textAlign: "left", width: "40px" }}
-                >
-                  <input type="checkbox" style={{ cursor: "pointer" }} aria-label="Select all users" />
-                </th>
-                <th
+        <>
+          <div
+            style={{
+              overflow: "auto",
+              border: "1px solid #e5e7eb",
+              borderRadius: "0.5rem",
+              backgroundColor: "white",
+              flex: 1,
+              marginBottom: "1rem",
+            }}
+          >
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr
                   style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
+                    backgroundColor: "#f9fafb",
+                    borderBottom: "1px solid #e5e7eb",
                   }}
                 >
-                  User Name
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Email
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Role
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Status
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Created At
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    textAlign: "left",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                ></th>
-              </tr>
-            </thead>
-            <tbody style={{ backgroundColor: "#F9FAFB", fontSize: "0.875rem" }}>
-              {Array.isArray(users) && users.length > 0 ? (
-                users.map((user) => (
-                  <tr key={user.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                    <td style={{ padding: "1rem 1.5rem" }}>
-                      <input
-                        type="checkbox"
-                        style={{ cursor: "pointer" }}
-                        aria-label={`Select user ${user.user_name || "Unknown"}`}
-                      />
-                    </td>
-                    <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
-                      {typeof user.user_name === "string" ? user.user_name : "Unknown"}
-                    </td>
-                    <td style={{ padding: "1rem 1.5rem", color: "#6b7280" }}>
-                      {typeof user.email === "string" ? user.email : "Unknown"}
-                    </td>
-                    <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
-                      {typeof user.rolename === "string" ? user.rolename : "Employee"}
-                    </td>
-                    <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
-                      <span
-                        style={{
-                          padding: "0.25rem 0.75rem",
-                          borderRadius: "9999px",
-                          fontSize: "0.75rem",
-                          fontWeight: "500",
-                          backgroundColor: user.status === "Active" ? "#d1fae5" : "#fee2e2",
-                          color: user.status === "Active" ? "#065f46" : "#991b1b",
-                        }}
-                      >
-                        {typeof user.status === "string" ? user.status : "Unknown"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "1rem 1.5rem", color: "#6b7280", fontSize: "0.875rem" }}>
-                      {user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "N/A"}
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.75rem 1rem",
-                        position: "relative",
-                        width: "10px",
-                      }}
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowMenu(showMenu === user.id ? null : user.id);
-                        }}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: "0.25rem",
-                        }}
-                        aria-label={`More options for ${user.user_name || "Unknown"}`}
-                      >
-                        <MoreVertical size={18} color="#6b7280" />
-                      </button>
-
-                      {showMenu === user.id && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            right: "1rem",
-                            top: "2rem",
-                            backgroundColor: "white",
-                            border: "1px solid #e5e7eb",
-                            borderRadius: "8px",
-                            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
-                            zIndex: 9999,
-                            minWidth: "180px",
-                            padding: "0.5rem 0",
-                          }}
-                        >
-                          <button
-                            onClick={() => {
-                              setEditingUser(user);
-                              setShowEditModal(true);
-                              setShowMenu(null);
-                            }}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "0.5rem",
-                              padding: "0.75rem 1.25rem",
-                              width: "100%",
-                              background: "none",
-                              border: "none",
-                              textAlign: "left",
-                              cursor: "pointer",
-                              fontSize: "0.875rem",
-                              color: "#374151",
-                              transition: "background-color 0.15s",
-                            }}
-                            onMouseEnter={(e) =>
-                              (e.currentTarget.style.backgroundColor = "#f3f4f6")
-                            }
-                            onMouseLeave={(e) =>
-                              (e.currentTarget.style.backgroundColor = "transparent")
-                            }
-                            aria-label={`Edit user ${user.user_name || "Unknown"}`}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteClick(user.id, user.user_name)}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "0.5rem",
-                              padding: "0.75rem 1.25rem",
-                              width: "100%",
-                              background: "none",
-                              border: "none",
-                              textAlign: "left",
-                              cursor: "pointer",
-                              fontSize: "0.875rem",
-                              color: "#dc2626",
-                              transition: "background-color 0.15s",
-                            }}
-                            onMouseEnter={(e) =>
-                              (e.currentTarget.style.backgroundColor = "#fef2f2")
-                            }
-                            onMouseLeave={(e) =>
-                              (e.currentTarget.style.backgroundColor = "transparent")
-                            }
-                            aria-label={`Delete user ${user.user_name || "Unknown"}`}
-                          >
-                            <Trash2 size={16} /> Delete
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={7}
+                  <th
+                    style={{ padding: "0.75rem 1.5rem", textAlign: "left", width: "40px" }}
+                  >
+                    <input type="checkbox" style={{ cursor: "pointer" }} aria-label="Select all users" />
+                  </th>
+                  <th
                     style={{
-                      textAlign: "center",
-                      padding: "1rem",
-                      color: "#9ca3af",
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
                     }}
                   >
-                    No users found
-                  </td>
+                    User Name
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Email
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Role
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Status
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Created At
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem 1.5rem",
+                      textAlign: "left",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  ></th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody style={{ backgroundColor: "#F9FAFB", fontSize: "0.875rem" }}>
+                {Array.isArray(users) && users.length > 0 ? (
+                  users.map((user) => (
+                    <tr key={user.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                      <td style={{ padding: "1rem 1.5rem" }}>
+                        <input
+                          type="checkbox"
+                          style={{ cursor: "pointer" }}
+                          aria-label={`Select user ${user.user_name || "Unknown"}`}
+                        />
+                      </td>
+                      <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
+                        {typeof user.user_name === "string" ? user.user_name : "Unknown"}
+                      </td>
+                      <td style={{ padding: "1rem 1.5rem", color: "#6b7280" }}>
+                        {typeof user.email === "string" ? user.email : "Unknown"}
+                      </td>
+                      <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
+                        {typeof user.rolename === "string" ? user.rolename : "Employee"}
+                      </td>
+                      <td style={{ padding: "1rem 1.5rem", color: "#374151" }}>
+                        <span
+                          style={{
+                            padding: "0.25rem 0.75rem",
+                            borderRadius: "9999px",
+                            fontSize: "0.75rem",
+                            fontWeight: "500",
+                            backgroundColor: user.status === "Active" ? "#d1fae5" : "#fee2e2",
+                            color: user.status === "Active" ? "#065f46" : "#991b1b",
+                          }}
+                        >
+                          {typeof user.status === "string" ? user.status : "Unknown"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "1rem 1.5rem", color: "#6b7280", fontSize: "0.875rem" }}>
+                        {user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "N/A"}
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.75rem 1rem",
+                          position: "relative",
+                          width: "10px",
+                        }}
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMenu(showMenu === user.id ? null : user.id);
+                          }}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: "0.25rem",
+                          }}
+                          aria-label={`More options for ${user.user_name || "Unknown"}`}
+                        >
+                          <MoreVertical size={18} color="#6b7280" />
+                        </button>
+
+                        {showMenu === user.id && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              right: "1rem",
+                              top: "2rem",
+                              backgroundColor: "white",
+                              border: "1px solid #e5e7eb",
+                              borderRadius: "8px",
+                              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
+                              zIndex: 9999,
+                              minWidth: "180px",
+                              padding: "0.5rem 0",
+                            }}
+                          >
+                            <button
+                              onClick={() => {
+                                setEditingUser(user);
+                                setShowEditModal(true);
+                                setShowMenu(null);
+                              }}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.5rem",
+                                padding: "0.75rem 1.25rem",
+                                width: "100%",
+                                background: "none",
+                                border: "none",
+                                textAlign: "left",
+                                cursor: "pointer",
+                                fontSize: "0.875rem",
+                                color: "#374151",
+                                transition: "background-color 0.15s",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.backgroundColor = "#f3f4f6")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.backgroundColor = "transparent")
+                              }
+                              aria-label={`Edit user ${user.user_name || "Unknown"}`}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteClick(user.id, user.user_name)}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.5rem",
+                                padding: "0.75rem 1.25rem",
+                                width: "100%",
+                                background: "none",
+                                border: "none",
+                                textAlign: "left",
+                                cursor: "pointer",
+                                fontSize: "0.875rem",
+                                color: "#dc2626",
+                                transition: "background-color 0.15s",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.backgroundColor = "#fef2f2")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.backgroundColor = "transparent")
+                              }
+                              aria-label={`Delete user ${user.user_name || "Unknown"}`}
+                            >
+                              <Trash2 size={16} /> Delete
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      style={{
+                        textAlign: "center",
+                        padding: "1rem",
+                        color: "#9ca3af",
+                      }}
+                    >
+                      No users found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "1rem",
+              backgroundColor: "white",
+              border: "1px solid #e5e7eb",
+              borderRadius: "0.5rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+                Rows per page:
+              </span>
+              <select
+                value={itemsPerPage}
+                onChange={handleItemsPerPageChange}
+                style={{
+                  padding: "0.25rem 0.5rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                  cursor: "pointer",
+                  backgroundColor: "white",
+                }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", color: "#6b7280" }}>
+              <span>
+                Page {currentPage} of {totalPages || 1}
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                style={{
+                  padding: "0.5rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.375rem",
+                  backgroundColor: currentPage === 1 ? "#f3f4f6" : "white",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  opacity: currentPage === 1 ? 0.5 : 1,
+                }}
+                aria-label="Previous page"
+              >
+                <ChevronLeft size={18} color="#6b7280" />
+              </button>
+
+              {getPageNumbers().map((page, index) => (
+                page === '...' ? (
+                  <span
+                    key={`ellipsis-${index}`}
+                    style={{
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.875rem",
+                      color: "#6b7280",
+                    }}
+                  >
+                    ...
+                  </span>
+                ) : (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page as number)}
+                    style={{
+                      padding: "0.5rem 0.75rem",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "0.375rem",
+                      backgroundColor: currentPage === page ? "#22d3ee" : "white",
+                      color: currentPage === page ? "white" : "#374151",
+                      cursor: "pointer",
+                      fontSize: "0.875rem",
+                      fontWeight: currentPage === page ? "600" : "400",
+                      minWidth: "36px",
+                    }}
+                    aria-label={`Page ${page}`}
+                    aria-current={currentPage === page ? "page" : undefined}
+                  >
+                    {page}
+                  </button>
+                )
+              ))}
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages || totalPages === 0}
+                style={{
+                  padding: "0.5rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "0.375rem",
+                  backgroundColor: currentPage === totalPages || totalPages === 0 ? "#f3f4f6" : "white",
+                  cursor: currentPage === totalPages || totalPages === 0 ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  opacity: currentPage === totalPages || totalPages === 0 ? 0.5 : 1,
+                }}
+                aria-label="Next page"
+              >
+                <ChevronRight size={18} color="#6b7280" />
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       <UserFormModal
@@ -1024,6 +1184,5 @@ const handleUpdate = async (user: Partial<ApiUser>) => {
     </div>
   );
 };
-
 
 export default UserList;

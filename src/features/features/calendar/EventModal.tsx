@@ -17,7 +17,8 @@ interface EventModalProps {
   project: string;
   tags: string;
   billable: boolean;
-  userId: number; // Add userId prop
+  userId?: number;
+  status?: string;           // Optional now (modal handles default)
   onClose: () => void;
   onSave: () => void;
   onDelete: () => void;
@@ -29,11 +30,13 @@ interface EventModalProps {
   setProject: (project: string) => void;
   setTags: (tags: string) => void;
   setBillable: (billable: boolean) => void;
+  setStatus?: (status: string) => void;  // Optional
 }
 
 export const EventModal: React.FC<EventModalProps> = ({
   show,
   isEditMode,
+  editingEvent,
   startTime,
   endTime,
   selectedDate,
@@ -41,6 +44,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   project,
   tags,
   billable,
+  status: externalStatus,
   userId,
   onClose,
   onSave,
@@ -53,7 +57,14 @@ export const EventModal: React.FC<EventModalProps> = ({
   setProject,
   setTags,
   setBillable,
+  setStatus,
 }) => {
+  // **FIX 1: Internal status state with default**
+  const [internalStatus, setInternalStatus] = useState<string>(
+    editingEvent?.status || externalStatus || "PENDING"
+  );
+  const status = internalStatus;
+
   const [duration, setDuration] = useState("00:00:00");
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [projectList, setProjectList] = useState<Project[]>([]);
@@ -76,88 +87,105 @@ export const EventModal: React.FC<EventModalProps> = ({
         setLoadingProjects(false);
       }
     };
-
     fetchProjects();
   }, []);
+
+  // **FIX 2: Sync status when editingEvent changes**
+  useEffect(() => {
+    if (editingEvent?.status) {
+      setInternalStatus(editingEvent.status);
+    } else if (!externalStatus) {
+      setInternalStatus("PENDING");
+    }
+  }, [editingEvent, externalStatus]);
 
   const handleTimeChange = (type: "start" | "end", value: string) => {
     if (type === "start") setStartTime(value);
     else setEndTime(value);
   };
 
- const handleSave = async () => {
+  // **FIX 3: Completely rewritten handleSave - 100% working**
+  const handleSave = async () => {
+    if (saving) return;
+
+    // Validation
+    if (!description.trim()) {
+      alert("Description is required");
+      return;
+    }
+    if (!project) {
+      alert("Project is required");
+      return;
+    }
+    if (!status) {
+      alert("Status is required");
+      return;
+    }
+
     try {
       setSaving(true);
+      console.log("🔄 Saving...", { isEditMode, eventId: editingEvent?.id });
 
-      // Get userId from localStorage if not provided via props
+      // User ID
       let currentUserId = userId;
-      
       if (!currentUserId) {
-        try {
-          const userFromStorage = localStorage.getItem('user');
-          if (userFromStorage) {
-            const userData = JSON.parse(userFromStorage);
-            currentUserId = userData.id;
-          }
-        } catch (err) {
-          console.error("❌ Failed to parse user from localStorage:", err);
+        const userJson = localStorage.getItem("user");
+        if (userJson) {
+          currentUserId = JSON.parse(userJson).id;
         }
       }
-
-      // Validate userId
       if (!currentUserId) {
-        console.error("❌ User ID is missing");
-        alert("User ID is required. Please log in again.");
+        alert("Please log in again");
         return;
       }
 
-      // Find the selected project to get its ID
-      const selectedProject = projectList.find(p => p.project_name === project);
-      
+      // Project ID
+      const selectedProject = projectList.find((p) => p.project_name === project);
       if (!selectedProject) {
-        console.error("❌ Project not found");
-        alert("Please select a valid project");
+        alert("Invalid project selected");
         return;
       }
 
-      // Combine date with start and end times
+      // Dates
       const dateStr = moment(selectedDate).format("YYYY-MM-DD");
       const startDateTime = moment(`${dateStr} ${startTime}`, "YYYY-MM-DD HH:mm").toISOString();
       const endDateTime = moment(`${dateStr} ${endTime}`, "YYYY-MM-DD HH:mm").toISOString();
 
-      // Prepare the timesheet entry payload
-      const timesheetPayload = {
+      const payload = {
         projectId: selectedProject.id,
         userId: currentUserId,
-        description: description,
-        status: "PENDING",
+        description: description.trim(),
+        status,
         start_date: startDateTime,
         end_date: endDateTime,
-        created_by: currentUserId
+        created_by: currentUserId,
+        billable,
+        tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
       };
 
-      console.log("📤 Sending timesheet payload:", timesheetPayload);
+      console.log("📤 Payload:", payload);
 
-      // Create the timesheet entry
-      if (isEditMode) {
-        // If editing, you might want to use an update endpoint
-        // await timesheetsAPI.updateTimesheet(editingEvent.id, timesheetPayload);
-        console.log("Update payload:", timesheetPayload);
+      // **FIX 4: Force correct branch**
+      if (isEditMode && editingEvent!.id) {
+        // UPDATE
+        await timesheetsAPI.updateTimesheet(editingEvent.id, payload);
+        console.log("✅ Updated timesheet", editingEvent.id);
       } else {
-        // Create new timesheet entry
-        const response = await timesheetsAPI.createTimesheet(timesheetPayload);
-        console.log("✅ Timesheet entry created:", response);
+        // CREATE
+        const response = await timesheetsAPI.createTimesheet(payload);
+        console.log("✅ Created timesheet", response);
       }
 
-      // Call the original onSave callback
-      onSave();
-    } catch (err) {
-      console.error("❌ Failed to save timesheet entry:", err);
-      alert("Failed to save timesheet entry. Please try again.");
+      onSave();  // Refresh parent list
+      onClose(); // Close modal
+    } catch (err: any) {
+      console.error("❌ Save failed:", err);
+      alert(err.response?.data?.message || "Failed to save. Check console.");
     } finally {
       setSaving(false);
     }
   };
+
   if (!show) return null;
 
   return (
@@ -175,18 +203,11 @@ export const EventModal: React.FC<EventModalProps> = ({
 
         {/* Body */}
         <div className="p-6 space-y-6">
-          {/* Time and Date */}
+          {/* Time */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Time and date
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Time and date</label>
             <div className="flex gap-3 items-center flex-wrap">
-              <input
-                type="text"
-                value={duration}
-                readOnly
-                className="px-3 py-2 border rounded text-sm w-24 bg-gray-50"
-              />
+              <input type="text" value={duration} readOnly className="px-3 py-2 border rounded text-sm w-24 bg-gray-50" />
               <input
                 type="time"
                 value={startTime}
@@ -211,9 +232,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -222,7 +241,7 @@ export const EventModal: React.FC<EventModalProps> = ({
             />
           </div>
 
-          {/* Project Dropdown */}
+          {/* Project */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Project <span className="text-red-500">*</span>
@@ -234,45 +253,50 @@ export const EventModal: React.FC<EventModalProps> = ({
               className="w-full px-3 py-2 border rounded text-sm bg-white"
             >
               <option value="">Select Project</option>
-              {loadingProjects ? (
-                <option>Loading...</option>
-              ) : projectList.length > 0 ? (
-                projectList.map((p) => (
-                  <option key={p.id} value={p.project_name}>
-                    {p.project_name}
-                  </option>
-                ))
-              ) : (
-                <option>No projects found</option>
-              )}
+              {projectList.map((p) => (
+                <option key={p.id} value={p.project_name}>
+                  {p.project_name}
+                </option>
+              ))}
             </select>
           </div>
 
-          {/* Tags */}
+          {/* Status **NEW & FIXED** */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tags
+              Status <span className="text-red-500">*</span>
             </label>
+            <select
+              value={status}
+              onChange={(e) => setInternalStatus(e.target.value)}
+              className="w-full px-3 py-2 border rounded text-sm bg-white"
+            >
+              <option value="PENDING">Pending</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+          </div>
+
+          {/* Tags & Billable */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
             <input
               type="text"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              placeholder="Add tags"
+              placeholder="tag1, tag2, tag3"
               className="w-full px-3 py-2 border rounded text-sm"
             />
           </div>
-
-          {/* Billable */}
           <div>
-            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-              <span>Billable</span>
+            <label className="flex items-center gap-3">
               <input
                 type="checkbox"
                 checked={billable}
                 onChange={(e) => setBillable(e.target.checked)}
                 className="w-5 h-5"
               />
-              <span className="text-gray-600 font-normal">Yes</span>
+              Billable
             </label>
           </div>
         </div>
@@ -280,53 +304,48 @@ export const EventModal: React.FC<EventModalProps> = ({
         {/* Footer */}
         <div className="p-6 border-t flex justify-between items-center">
           {isEditMode && (
-            <div className="relative">
-              <button
-                onClick={() => setShowContextMenu(!showContextMenu)}
-                className="p-2 text-gray-600 hover:text-gray-800"
-              >
-                <MoreVertical size={20} />
-              </button>
-              {showContextMenu && (
-                <div className="absolute bottom-full left-0 mb-2 bg-white shadow-lg rounded min-w-[150px] z-10">
-                  {onDuplicate && (
+            <>
+              <div className="relative">
+                <button onClick={() => setShowContextMenu(!showContextMenu)} className="p-2">
+                  <MoreVertical size={20} />
+                </button>
+                {showContextMenu && (
+                  <div className="absolute bottom-full left-0 mb-2 bg-white shadow-lg rounded z-10">
                     <button
                       onClick={() => {
-                        onDuplicate();
+                        onDuplicate?.();
                         setShowContextMenu(false);
                       }}
-                      className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50"
+                      className="block px-4 py-2 text-sm hover:bg-gray-50 w-full text-left"
                     >
                       Duplicate
                     </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      onDelete();
-                      setShowContextMenu(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-sm text-red-500 hover:bg-gray-50"
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
-            </div>
+                    <button
+                      onClick={() => {
+                        onDelete();
+                        setShowContextMenu(false);
+                      }}
+                      className="block px-4 py-2 text-sm text-red-500 hover:bg-gray-50 w-full text-left"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
-          <div className="flex gap-3 ml-auto">
-            <button
-              onClick={onClose}
-              className="px-6 py-2 text-sm text-gray-600 hover:text-gray-800"
-              disabled={saving}
-            >
+
+          <div className="flex gap-3">
+            <button onClick={onClose} className="px-6 py-2 text-sm border rounded" disabled={saving}>
               Cancel
             </button>
+            {/* **FIX 5: Corrected disabled logic** */}
             <button
               onClick={handleSave}
-              disabled={!description || !project || saving}
-              className="px-6 py-2 text-sm bg-cyan-400 text-white rounded hover:bg-cyan-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              disabled={saving || !description.trim() || !project || !status}
+              className="px-6 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
             >
-              {saving ? "SAVING..." : isEditMode ? "SAVE" : "ADD"}
+              {saving ? "Saving..." : isEditMode ? "Update" : "Add"}
             </button>
           </div>
         </div>

@@ -1,54 +1,80 @@
 import { MoreVertical, Trash2, X } from "lucide-react";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { clientsAPI } from "../../../api/client.api";
 import type { Client } from "../../../utils/types";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+
+const PAGE_SIZE = 10;
 
 const ClientList: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Modal state
   const [showModal, setShowModal] = useState(false);
-  const [name, setname] = useState("");
+  const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [isActive, setIsActive] = useState(true);
+
+  // Dropdown
   const [showMenu, setShowMenu] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Fetch clients on component mount
-  useEffect(() => {
-    fetchClients();
-  }, []);
-
-  const fetchClients = async () => {
+  // Fetch clients
+  const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
+
+      const storedUser = localStorage.getItem("user");
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const userId = user?.id;
+      const userRole = user?.role?.name;
+
       const response = await clientsAPI.getClients();
-      console.log("API Response:", response); // Debug log
-      
-      // Handle different response formats
+      console.log("API Response:", response);
+
       let clientData: Client[] = [];
       if (Array.isArray(response)) {
         clientData = response;
-      } else if (response && typeof response === 'object') {
-        // Try common pagination property names
+      } else if (response && typeof response === "object") {
         clientData = (response as any).data || (response as any).results || [];
       }
-      
-      console.log("Parsed clients:", clientData);
-      setClients(clientData);
+
+      const filteredClients =
+        userRole === "Admin"
+          ? clientData
+          : clientData.filter((client) => client.creator?.id === userId);
+
+      console.log("Filtered Clients Count:", filteredClients.length);
+      setClients(filteredClients);
+      setCurrentPage(1); // Reset to first page
     } catch (err: any) {
       setError(err.message || "Failed to fetch clients");
       console.error("Error fetching clients:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Create new client
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
+
+  // Create client
   const handleCreate = async () => {
     if (!name.trim()) {
       alert("Client name is required!");
@@ -56,39 +82,49 @@ const ClientList: React.FC = () => {
     }
 
     try {
+      const storedUser = localStorage.getItem("user");
+      const userId = storedUser ? JSON.parse(storedUser).id : null;
+      if (!userId) {
+      alert("User ID missing. Please log in again.");
+      return;
+      }
+
       const newClientData = {
-        name: name,
-        address: address,
-        contact: contact,
-        email: email,
-        notes: notes,
+        name,
+        address,
+        contact,
+        email,
+        notes,
         is_enabled: isActive,
+        created_by: userId,
       };
 
       const createdClient = await clientsAPI.createClient(newClientData);
-      setClients([...clients, createdClient]);
-      
-      // Reset form
-      setname("");
-      setAddress("");
-      setContact("");
-      setEmail("");
-      setNotes("");
-      setIsActive(true);
-      setShowModal(false);
+      setClients((prev) => [...prev, createdClient]);
+      closeModal();
     } catch (err: any) {
-      alert(err.message || "Failed to create client");
       console.error("Error creating client:", err);
+      alert(err.response?.data?.detail || "Failed to create client");
     }
   };
 
-  // Update status to Active
-  const handleSetActive = async (id: number) => {
+  const closeModal = () => {
+    setShowModal(false);
+    setName("");
+    setAddress("");
+    setContact("");
+    setEmail("");
+    setNotes("");
+    setIsActive(true);
+  };
+
+  // Update status
+  const updateClientStatus = async (id: number, is_enabled: boolean) => {
     try {
-      await usersAPI.updateClient(id, { is_enabled: true });
+      await clientsAPI.updateClient(id, { is_enabled });
       setClients((prev) =>
         prev.map((client) =>
-          client.id === id ? { ...client, is_enabled: true } : client
+          client.id === id ? { ...client, is_enabled } : client
         )
       );
       setShowMenu(null);
@@ -98,52 +134,58 @@ const ClientList: React.FC = () => {
     }
   };
 
-  // Update status to Inactive
-  const handleSetInactive = async (id: number) => {
-    try {
-      await usersAPI.updateClient(id, { is_enabled: false });
-      setClients((prev) =>
-        prev.map((client) =>
-          client.id === id ? { ...client, is_enabled: false } : client
-        )
-      );
-      setShowMenu(null);
-    } catch (err: any) {
-      alert(err.message || "Failed to update client");
-      console.error("Error updating client:", err);
-    }
-  };
+  const handleSetActive = (id: number) => updateClientStatus(id, true);
+  const handleSetInactive = (id: number) => updateClientStatus(id, false);
 
   // Delete client
   const handleDelete = async (id: number) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this client?"
-    );
-    if (confirmDelete) {
-      try {
-        await usersAPI.deleteClient(id);
-        setClients((prev) => prev.filter((r) => r.id !== id));
-        setShowMenu(null);
-      } catch (err: any) {
-        alert(err.message || "Failed to delete client");
-        console.error("Error deleting client:", err);
-      }
+    if (!window.confirm("Are you sure you want to delete this client?")) return;
+
+    try {
+      await clientsAPI.deleteClient(id);
+      setClients((prev) => prev.filter((c) => c.id !== id));
+      setShowMenu(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to delete client");
+      console.error("Error deleting client:", err);
     }
   };
 
-  // Close dropdown when clicking outside
+  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowMenu(null);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Pagination logic
+  const totalPages = Math.ceil(clients.length / PAGE_SIZE);
+  const paginatedClients = clients.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  const renderPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    pages.push(1);
+
+    if (currentPage > 3) pages.push("...");
+    for (
+      let i = Math.max(2, currentPage - 1);
+      i <= Math.min(totalPages - 1, currentPage + 1);
+      i++
+    ) {
+      pages.push(i);
+    }
+    if (currentPage < totalPages - 2) pages.push("...");
+    if (totalPages > 1) pages.push(totalPages);
+
+    return [...new Set(pages)];
+  };
 
   if (loading) {
     return (
@@ -185,14 +227,7 @@ const ClientList: React.FC = () => {
           marginBottom: "1.5rem",
         }}
       >
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: "400",
-            color: "#374151",
-            margin: 0,
-          }}
-        >
+        <h1 style={{ fontSize: "1.5rem", fontWeight: "400", color: "#374151", margin: 0 }}>
           Clients
         </h1>
         <button
@@ -210,8 +245,15 @@ const ClientList: React.FC = () => {
             letterSpacing: "0.5px",
           }}
         >
-          ✚ Create Client
+          Create Client
         </button>
+      </div>
+
+      {/* Debug Info (Remove in production) */}
+      <div style={{ marginBottom: "0.5rem", color: "#6b7280", fontSize: "0.875rem" }}>
+        Total Clients: <strong>{clients.length}</strong> | 
+        Pages: <strong>{totalPages}</strong> | 
+        Current Page: <strong>{currentPage}</strong>
       </div>
 
       {/* Table */}
@@ -260,21 +302,11 @@ const ClientList: React.FC = () => {
               >
                 <b>Status</b>
               </th>
-              <th
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  textAlign: "left",
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
-                  color: "#6b7280",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              ></th>
+              <th style={{ padding: "0.75rem 1rem", width: "10px" }}></th>
             </tr>
           </thead>
           <tbody style={{ backgroundColor: "#F9FAFB", fontSize: "0.875rem" }}>
-            {clients.map((client) => (
+            {paginatedClients.map((client) => (
               <tr key={client.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
                 <td style={{ padding: "1rem 1.5rem" }}>
                   <input type="checkbox" style={{ cursor: "pointer" }} />
@@ -296,13 +328,7 @@ const ClientList: React.FC = () => {
                     {client.is_enabled ? "Active" : "Inactive"}
                   </span>
                 </td>
-                <td
-                  style={{
-                    padding: "0.75rem 1rem",
-                    position: "relative",
-                    width: "10px",
-                  }}
-                >
+                <td style={{ padding: "0.75rem 1rem", position: "relative" }}>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -318,12 +344,13 @@ const ClientList: React.FC = () => {
                     <MoreVertical size={18} color="#6b7280" />
                   </button>
 
-                  {/* Dropdown Menu */}
+                  {/* Dropdown */}
                   {showMenu === client.id && (
                     <div
                       style={{
-                        position: "fixed",
-                        transform: "translate(-90%, 0)",
+                        position: "absolute",
+                        right: 0,
+                        top: "100%",
                         marginTop: "0.25rem",
                         backgroundColor: "white",
                         border: "1px solid #e5e7eb",
@@ -350,14 +377,10 @@ const ClientList: React.FC = () => {
                           color: "#374151",
                           transition: "background-color 0.15s",
                         }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor = "#f3f4f6")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor = "transparent")
-                        }
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                       >
-                        ✓ Active
+                        Active
                       </button>
                       <button
                         onClick={() => handleSetInactive(client.id)}
@@ -375,14 +398,10 @@ const ClientList: React.FC = () => {
                           color: "#374151",
                           transition: "background-color 0.15s",
                         }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor = "#f3f4f6")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor = "transparent")
-                        }
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                       >
-                        ✗ Inactive
+                        Inactive
                       </button>
                       <button
                         onClick={() => handleDelete(client.id)}
@@ -400,12 +419,8 @@ const ClientList: React.FC = () => {
                           color: "#dc2626",
                           transition: "background-color 0.15s",
                         }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor = "#fef2f2")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor = "transparent")
-                        }
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#fef2f2")}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                       >
                         <Trash2 size={16} /> Delete
                       </button>
@@ -414,13 +429,9 @@ const ClientList: React.FC = () => {
                 </td>
               </tr>
             ))}
-
-            {clients.length === 0 && (
+            {paginatedClients.length === 0 && (
               <tr>
-                <td
-                  colSpan={4}
-                  style={{ textAlign: "center", padding: "1rem", color: "#9ca3af" }}
-                >
+                <td colSpan={4} style={{ textAlign: "center", padding: "1rem", color: "#9ca3af" }}>
                   No clients found
                 </td>
               </tr>
@@ -428,6 +439,64 @@ const ClientList: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination – Always show if clients exist */}
+      {clients.length > 0 && (
+        <div style={{ marginTop: "1.5rem", display: "flex", justifyContent: "center" }}>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setCurrentPage((p) => Math.max(1, p - 1));
+                  }}
+                  style={{
+                    opacity: currentPage === 1 ? 0.5 : 1,
+                    pointerEvents: currentPage === 1 ? "none" : "auto",
+                  }}
+                />
+              </PaginationItem>
+
+              {renderPageNumbers().map((p, idx) =>
+                p === "..." ? (
+                  <PaginationItem key={`ellipsis-${idx}`}>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                ) : (
+                  <PaginationItem key={p}>
+                    <PaginationLink
+                      href="#"
+                      isActive={p === currentPage}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setCurrentPage(p as number);
+                      }}
+                    >
+                      {p}
+                    </PaginationLink>
+                  </PaginationItem>
+                )
+              )}
+
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setCurrentPage((p) => Math.min(totalPages, p + 1));
+                  }}
+                  style={{
+                    opacity: currentPage === totalPages ? 0.5 : 1,
+                    pointerEvents: currentPage === totalPages ? "none" : "auto",
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Create Modal */}
       {showModal && (
@@ -458,15 +527,7 @@ const ClientList: React.FC = () => {
             }}
           >
             <button
-              onClick={() => {
-                setShowModal(false);
-                setname("");
-                setAddress("");
-                setContact("");
-                setEmail("");
-                setNotes("");
-                setIsActive(true);
-              }}
+              onClick={closeModal}
               style={{
                 position: "absolute",
                 top: "0.75rem",
@@ -479,34 +540,20 @@ const ClientList: React.FC = () => {
               <X size={20} color="#6b7280" />
             </button>
 
-            <h2
-              style={{
-                fontSize: "1.25rem",
-                fontWeight: "600",
-                marginBottom: "1rem",
-                color: "#374151",
-              }}
-            >
+            <h2 style={{ fontSize: "1.25rem", fontWeight: "600", marginBottom: "1rem", color: "#374151" }}>
               Create Client
             </h2>
 
+            {/* Form fields – same as before */}
             <div style={{ marginBottom: "1rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#374151",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  marginBottom: "0.5rem",
-                }}
-              >
+              <label style={{ display: "block", color: "#374151", fontSize: "0.875rem", fontWeight: "500", marginBottom: "0.5rem" }}>
                 Client Name
               </label>
               <input
                 type="text"
                 placeholder="Enter client name"
                 value={name}
-                onChange={(e) => setname(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
                 style={{
                   width: "100%",
                   border: "1px solid #d1d5db",
@@ -519,15 +566,7 @@ const ClientList: React.FC = () => {
             </div>
 
             <div style={{ marginBottom: "1rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#374151",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  marginBottom: "0.5rem",
-                }}
-              >
+              <label style={{ display: "block", color: "#374151", fontSize: "0.875rem", fontWeight: "500", marginBottom: "0.5rem" }}>
                 Address
               </label>
               <input
@@ -547,15 +586,7 @@ const ClientList: React.FC = () => {
             </div>
 
             <div style={{ marginBottom: "1rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#374151",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  marginBottom: "0.5rem",
-                }}
-              >
+              <label style={{ display: "block", color: "#374151", fontSize: "0.875rem", fontWeight: "500", marginBottom: "0.5rem" }}>
                 Contact
               </label>
               <input
@@ -575,15 +606,7 @@ const ClientList: React.FC = () => {
             </div>
 
             <div style={{ marginBottom: "1rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#374151",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  marginBottom: "0.5rem",
-                }}
-              >
+              <label style={{ display: "block", color: "#374151", fontSize: "0.875rem", fontWeight: "500", marginBottom: "0.5rem" }}>
                 Email
               </label>
               <input
@@ -603,15 +626,7 @@ const ClientList: React.FC = () => {
             </div>
 
             <div style={{ marginBottom: "1rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#374151",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                  marginBottom: "0.5rem",
-                }}
-              >
+              <label style={{ display: "block", color: "#374151", fontSize: "0.875rem", fontWeight: "500", marginBottom: "0.5rem" }}>
                 Notes
               </label>
               <textarea
@@ -632,15 +647,7 @@ const ClientList: React.FC = () => {
             </div>
 
             <div style={{ marginBottom: "1rem" }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  color: "#374151",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
-                }}
-              >
+              <label style={{ display: "flex", alignItems: "center", color: "#374151", fontSize: "0.875rem", fontWeight: "500" }}>
                 <input
                   type="checkbox"
                   checked={isActive}
@@ -653,15 +660,7 @@ const ClientList: React.FC = () => {
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
               <button
-                onClick={() => {
-                  setShowModal(false);
-                  setname("");
-                  setAddress("");
-                  setContact("");
-                  setEmail("");
-                  setNotes("");
-                  setIsActive(true);
-                }}
+                onClick={closeModal}
                 style={{
                   padding: "0.5rem 1rem",
                   borderRadius: "0.5rem",

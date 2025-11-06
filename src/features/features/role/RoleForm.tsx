@@ -3,8 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { rolesAPI } from "../../../api/roles.api";
 
-
-
 interface Permission {
   page: string;
   read: boolean;
@@ -45,62 +43,63 @@ const RoleForm: React.FC = () => {
   );
 
   // Fetch role data when editing
- useEffect(() => {
-  const fetchRoleData = async () => {
-    if (!id) return;
+  useEffect(() => {
+    const fetchRoleData = async () => {
+      if (!id) return;
 
-    try {
-      setLoading(true);
-      const response = await rolesAPI.getRoleById(id);
+      try {
+        setLoading(true);
+        const response = await rolesAPI.getRoleById(parseInt(id));
 
-      setRoleName(response.name);
-      setDescription(response.description || "");
-      setStatus(response.is_enabled ? "Active" : "Inactive");
+        console.log("📥 Fetched role data:", response);
 
-      // Default permission table
-      const defaultPermissions = [
-        { page: "Dashboard", read: false, write: false, create: false, delete: false },
-        { page: "Projects", read: false, write: false, create: false, delete: false },
-        { page: "Timesheet", read: false, write: false, create: false, delete: false },
-        { page: "Calendar", read: false, write: false, create: false, delete: false },
-        { page: "Users", read: false, write: false, create: false, delete: false },
-        { page: "Roles", read: false, write: false, create: false, delete: false },
-        { page: "Clients", read: false, write: false, create: false, delete: false },
-        { page: "Reports", read: false, write: false, create: false, delete: false },
-      ];
+        setRoleName(response.name);
+        setDescription(response.description || "");
+        setStatus(response.is_enabled ? "Active" : "Inactive");
 
-      // Helper to normalize name
-      const normalize = (str) => str.toLowerCase().replace(/s$/, ""); // remove trailing 's'
+        // Default permission table
+        const defaultPermissions = [
+          { page: "Dashboard", read: false, write: false, create: false, delete: false },
+          { page: "Projects", read: false, write: false, create: false, delete: false },
+          { page: "Timesheet", read: false, write: false, create: false, delete: false },
+          { page: "Calendar", read: false, write: false, create: false, delete: false },
+          { page: "Users", read: false, write: false, create: false, delete: false },
+          { page: "Roles", read: false, write: false, create: false, delete: false },
+          { page: "Clients", read: false, write: false, create: false, delete: false },
+          { page: "Reports", read: false, write: false, create: false, delete: false },
+        ];
 
-      const updatedPermissions = defaultPermissions.map((perm) => {
-        const pageKey = normalize(perm.page); // e.g. "projects" → "project"
+        // Helper to normalize name
+        const normalize = (str: string) => str.toLowerCase().replace(/s$/, ""); // remove trailing 's'
 
-        const relatedPerms = response.permissions.filter((p) =>
-          p.code.toLowerCase().startsWith(pageKey)
-        );
+        const updatedPermissions = defaultPermissions.map((perm) => {
+          const pageKey = normalize(perm.page); // e.g. "projects" → "project"
 
-        return {
-          ...perm,
-          create: relatedPerms.some((p) => p.code.includes("_create")),
-          delete: relatedPerms.some((p) => p.code.includes("_delete")),
-          write: relatedPerms.some((p) => p.code.includes("_update") || p.code.includes("_edit")),
-          read: relatedPerms.some((p) => p.code.includes("_view") || p.code.includes("_read")),
-        };
-      });
+          const relatedPerms = response.permissions.filter((p: any) =>
+            p.code.toLowerCase().startsWith(pageKey)
+          );
 
-      setPermissions(updatedPermissions);
-      console.log("✅ Final mapped permissions:", updatedPermissions);
-    } catch (error) {
-      console.error("Error fetching role:", error);
-      alert("Failed to load role data");
-    } finally {
-      setLoading(false);
-    }
-  };
+          return {
+            ...perm,
+            create: relatedPerms.some((p: any) => p.code.includes("_create")),
+            delete: relatedPerms.some((p: any) => p.code.includes("_delete")),
+            write: relatedPerms.some((p: any) => p.code.includes("_update") || p.code.includes("_edit")),
+            read: relatedPerms.some((p: any) => p.code.includes("_view") || p.code.includes("_read")),
+          };
+        });
 
-  fetchRoleData();
-}, [id]);
+        setPermissions(updatedPermissions);
+        console.log("✅ Mapped permissions to checkboxes:", updatedPermissions);
+      } catch (error) {
+        console.error("❌ Error fetching role:", error);
+        alert("Failed to load role data");
+      } finally {
+        setLoading(false);
+      }
+    };
 
+    fetchRoleData();
+  }, [id]);
 
   const handlePermissionChange = (
     pageIndex: number,
@@ -154,47 +153,58 @@ const RoleForm: React.FC = () => {
   };
 
   const handleSave = async () => {
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    // 🧠 Convert checkbox state to permission codes
-    const selectedPermissionCodes: string[] = [];
+      // 🧠 Convert checkbox state to permission codes
+      const selectedPermissionCodes: string[] = [];
 
-    permissions.forEach((perm) => {
-      const pageKey = perm.page.toLowerCase().replace(/s$/, ""); // e.g. "Projects" → "project"
+      permissions.forEach((perm) => {
+        const pageKey = perm.page.toLowerCase().replace(/s$/, ""); // e.g. "Projects" → "project"
 
-      if (perm.create) selectedPermissionCodes.push(`${pageKey}_create`);
-      if (perm.delete) selectedPermissionCodes.push(`${pageKey}_delete`);
-      if (perm.write) selectedPermissionCodes.push(`${pageKey}_update`);
-      if (perm.read) selectedPermissionCodes.push(`${pageKey}_view`);
-    });
+        if (perm.create) selectedPermissionCodes.push(`${pageKey}_create`);
+        if (perm.delete) selectedPermissionCodes.push(`${pageKey}_delete`);
+        if (perm.write) selectedPermissionCodes.push(`${pageKey}_update`);
+        if (perm.read) selectedPermissionCodes.push(`${pageKey}_view`);
+      });
 
-    // 🧱 Build payload
-    const payload = {
-      name: roleName,
-      is_enabled: status === "Active",
-      permissions: selectedPermissionCodes,
-    };
+      // 🔍 DEBUG: Log what we're sending
+      console.log("=== FRONTEND SAVE ===");
+      console.log("📋 Current permissions state:", permissions);
+      console.log("📤 Permission codes to send:", selectedPermissionCodes);
+      console.log("=" .repeat(40));
 
-    console.log("🟢 Payload to send:", payload);
+      // 🧱 Build payload
+      const payload = {
+        name: roleName,
+        is_enabled: status === "Active",
+        permissions: selectedPermissionCodes,
+      };
 
-    // 🧩 Call correct API
-    if (id) {
-      await rolesAPI.updateRole(parseInt(id), payload);
-      alert("✅ Role updated successfully!");
-    } else {
-      await rolesAPI.createRole(payload);
-      alert("✅ Role created successfully!");
+      console.log("🟢 Full payload being sent:", JSON.stringify(payload, null, 2));
+
+      // 🧩 Call correct API
+      if (id) {
+        const response = await rolesAPI.updateRole(parseInt(id), payload);
+        console.log("✅ Backend response:", response);
+        alert("✅ Role updated successfully!");
+        
+        // Optional: Navigate back to roles list
+        navigate('/role');
+      } else {
+        const response = await rolesAPI.createRole(payload);
+        console.log("✅ Backend response:", response);
+        alert("✅ Role created successfully!");
+        navigate('/role');
+      }
+
+    } catch (error) {
+      console.error("❌ Error saving role:", error);
+      alert("Failed to save role. Check console for details.");
+    } finally {
+      setLoading(false);
     }
-
-  } catch (error) {
-    console.error("❌ Error saving role:", error);
-    alert("Failed to save role");
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   if (loading && id) {
     return (
@@ -300,7 +310,7 @@ const RoleForm: React.FC = () => {
             {activeTab === "permissions" && (
               <div className="overflow-x-auto">
                 <div className="mb-4 text-sm text-gray-600">
-                  Select permissions for this role. These will determine what actions users with this role can perform.
+                  Select permissions for this role. Unchecking a permission will remove it when you save.
                 </div>
                 
                 <table className="w-full border-collapse">
