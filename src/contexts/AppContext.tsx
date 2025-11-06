@@ -1,10 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import type { EventType, Project, AppContextType } from "../utils/types";
+import type { EventType, Project, User, AppContextType } from "../utils/types";
 import { formatDate, formatTime } from "../utils/timeCalculations";
 import { projectsAPI } from "../api/projects.api";
 import { timesheetsAPI } from "../api/timesheet.api";
+import { usersAPI } from "../api/users.api"; // ✅ Your existing users API
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+// ✅ Extend AppContextType to include users
+interface ExtendedAppContextType extends AppContextType {
+  users: User[];
+  isLoadingUsers: boolean;
+  refreshUsers: () => void;
+}
+
+const AppContext = createContext<ExtendedAppContextType | undefined>(undefined);
 
 export const useAppContext = () => {
   const context = useContext(AppContext);
@@ -35,7 +43,27 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   });
 
   const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]); // ✅ Add users state
   const [isLoadingTimesheet, setIsLoadingTimesheet] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false); // ✅ Add loading state
+
+  // ✅ Fetch users from backend API
+  const fetchUsers = useCallback(async () => {
+    console.log('👥 Fetching users from backend...');
+    setIsLoadingUsers(true);
+    
+    try {
+      const data = await usersAPI.getUsers(); // Use your actual users API
+      console.log('📋 Fetched users:', data);
+      
+      setUsers(data); // Store users as-is from backend
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+      setUsers([]); // Set empty array on error
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  }, []);
 
   // Fetch and calculate time entries for all projects
   const fetchTimesheetData = useCallback(async (projectsList: Project[]) => {
@@ -56,29 +84,22 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
             const timeEntries: { [key: string]: string } = {};
 
             if (Array.isArray(timesheets)) {
-              timesheets.forEach((timesheet: any) => {
-                // Format the date key
-                const date = new Date(timesheet.date || timesheet.work_date || timesheet.created_at);
-                const dateKey = formatDate(date);
-                
-                // Get duration (adjust field name based on your API response)
-                const duration = timesheet.duration || timesheet.hours || 0;
-                console.log(`  Date: ${dateKey}, Duration: ${duration}`);
+  timesheets.forEach((timesheet: any) => {
+    // Convert start_date safely to local date (ignore timezone shifts)
+    const utcDate = new Date(timesheet.start_date);
+    const date = new Date(
+      utcDate.getUTCFullYear(),
+      utcDate.getUTCMonth(),
+      utcDate.getUTCDate()
+    );
 
-                if (timeEntries[dateKey]) {
-                  // Add to existing entry
-                  const [eH, eM, eS] = timeEntries[dateKey].split(":").map(Number);
-                  const existingSeconds = eH * 3600 + eM * 60 + eS;
-                  const totalSeconds = existingSeconds + duration;
-                  timeEntries[dateKey] = formatTime(totalSeconds);
-                  console.log(`  ✅ Updated ${dateKey}: ${formatTime(totalSeconds)}`);
-                } else {
-                  // Create new entry
-                  timeEntries[dateKey] = formatTime(duration);
-                  console.log(`  ✅ Created ${dateKey}: ${formatTime(duration)}`);
-                }
-              });
-            }
+    const dateKey = formatDate(date);
+    const duration = timesheet.duration || timesheet.hours || 0;
+
+    console.log(`✅ Final Date: ${dateKey}, Duration: ${duration}`);
+  });
+}
+
 
             console.log(`  Final timeEntries for ${project.name}:`, timeEntries);
 
@@ -105,10 +126,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   }, []);
 
-  // Fetch projects on mount
+  // ✅ Fetch projects and users on mount
   useEffect(() => {
-    const fetchProjects = async () => {
+    const fetchInitialData = async () => {
       try {
+        // Fetch users first
+        await fetchUsers();
+        
+        // Fetch projects
         const data = await projectsAPI.getProjects();
         console.log('📦 Fetched projects:', data);
         
@@ -126,10 +151,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         // Fetch timesheet data after projects are loaded
         await fetchTimesheetData(formattedProjects);
       } catch (err) {
-        console.error("Failed to fetch projects:", err);
+        console.error("Failed to fetch initial data:", err);
       }
     };
-    fetchProjects();
+    
+    fetchInitialData();
   }, []); // Only run on mount
 
   // Save events to localStorage whenever they change
@@ -162,17 +188,25 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   }, [projects, fetchTimesheetData]);
 
+  // ✅ Add refresh users function
+  const refreshUsers = useCallback(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
   return (
     <AppContext.Provider 
       value={{ 
         events, 
         projects, 
+        users, // ✅ Add users
         addEvent, 
         updateEvent, 
         deleteEvent, 
         updateProjects,
-        refreshTimesheets, // Add this if you want manual refresh capability
-        isLoadingTimesheet
+        refreshTimesheets,
+        refreshUsers, // ✅ Add refresh users
+        isLoadingTimesheet,
+        isLoadingUsers // ✅ Add loading state
       }}
     >
       {children}
