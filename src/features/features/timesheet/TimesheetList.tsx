@@ -416,7 +416,7 @@ export const Timesheet: React.FC = () => {
           <div className="p-6 border-t flex-shrink-0">
             <div className="max-w-7xl mx-auto">
               <div className="flex justify-between items-center gap-4">
-                {/* Showing X to Y and Dropdown - Left Side */}
+      
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">Showing {indexOfFirstProject + 1} to {Math.min(indexOfLastProject, projects.length)} of {projects.length} projects</span>
                   <span className="text-sm text-gray-600">Items per page:</span>
@@ -435,8 +435,6 @@ export const Timesheet: React.FC = () => {
                     <option value={50}>50</option>
                   </select>
                 </div>
-
-                {/* Page Navigation (Previous, Page Numbers, Next) - Right Side */}
                 <div className="flex items-center gap-2">
                   <PaginationItem>
                     <PaginationPrevious
